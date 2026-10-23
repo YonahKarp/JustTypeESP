@@ -83,7 +83,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Initializing RGB panel and backlight");
 
     ESP_ERROR_CHECK(gpio_set_direction(LCD_BKLT_GPIO, GPIO_MODE_OUTPUT));
-    ESP_ERROR_CHECK(gpio_set_level(LCD_BKLT_GPIO, 1));
+    ESP_ERROR_CHECK(gpio_set_level(LCD_BKLT_GPIO, 0));
 
     const int rgb_pins[16] = {
         15, 7, 6, 5, 4,    /* B0..B4 */
@@ -107,6 +107,8 @@ void app_main(void)
             .flags.pclk_active_neg = 1,
         },
         .data_width = 16,
+        .in_color_format = LCD_COLOR_FMT_RGB565,
+        .out_color_format = LCD_COLOR_FMT_RGB565,
         .num_fbs = 1,
         .hsync_gpio_num = 39,
         .vsync_gpio_num = 40,
@@ -125,7 +127,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel));
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
-    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
 
     for (int i = 0; i < LCD_H_RES; i++) {
         s_line_buf[i] = 0x0000;
@@ -142,5 +143,6 @@ void app_main(void)
     const int start_y = (LCD_V_RES - msg_h) / 2;
 
     draw_text_5x7_scaled(panel, start_x, start_y, msg, scale, 0xFFFF);
+    ESP_ERROR_CHECK(gpio_set_level(LCD_BKLT_GPIO, 1));
     ESP_LOGI(TAG, "Displayed: %s", msg);
 }
