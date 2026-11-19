@@ -1,3 +1,4 @@
+#include "international_font.h"
 #include "qr_export.h"
 
 #include "editor.h"
@@ -207,7 +208,7 @@ void update_qr_export_popup_content() {
     if (g_qr_export.ascii_error) {
         lv_label_set_text(g_qr_export.info_label, g_qr_export.error_message.c_str());
         if (g_qr_export.hint_label) {
-            lv_label_set_text(g_qr_export.hint_label, "Press Esc to close");
+            lv_label_set_text(g_qr_export.hint_label, "Press Esc or ` to close");
         }
         return;
     }
@@ -230,7 +231,7 @@ void update_qr_export_popup_content() {
         }
         lv_label_set_text(g_qr_export.info_label, g_qr_export.error_message.c_str());
         if (g_qr_export.hint_label) {
-            lv_label_set_text(g_qr_export.hint_label, "Press Esc to close");
+            lv_label_set_text(g_qr_export.hint_label, "Press Esc or ` to close");
         }
         return;
     }
@@ -247,7 +248,7 @@ void update_qr_export_popup_content() {
     );
     lv_label_set_text(g_qr_export.info_label, info_buf);
     if (g_qr_export.hint_label) {
-        lv_label_set_text(g_qr_export.hint_label, "Arrows: manual  Enter: resume auto  Esc: close");
+        lv_label_set_text(g_qr_export.hint_label, "Arrows: manual  Enter: resume auto  Esc or `: close");
     }
 }
 
@@ -290,7 +291,7 @@ void qr_export_open(const EditorState& editor) {
 
     g_qr_export.title_label = lv_label_create(g_qr_export.overlay);
     lv_obj_set_style_text_color(g_qr_export.title_label, theme.edit_text, 0);
-    lv_obj_set_style_text_font(g_qr_export.title_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_font(g_qr_export.title_label, get_ui_font(24), 0);
 
     const char* editor_text = lv_textarea_get_text(editor.textarea);
     std::string text = editor_text ? std::string(editor_text) : std::string();
@@ -305,7 +306,7 @@ void qr_export_open(const EditorState& editor) {
         lv_obj_set_width(g_qr_export.info_label, LV_PCT(95));
         lv_label_set_long_mode(g_qr_export.info_label, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(g_qr_export.info_label, theme.edit_text, 0);
-        lv_obj_set_style_text_font(g_qr_export.info_label, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(g_qr_export.info_label, get_ui_font(16), 0);
         g_qr_export.error_message =
             "Current file contains non-ASCII bytes.\n"
             "First non-ASCII byte at position " + std::to_string(non_ascii_index) +
@@ -314,8 +315,8 @@ void qr_export_open(const EditorState& editor) {
 
         g_qr_export.hint_label = lv_label_create(g_qr_export.overlay);
         lv_obj_set_style_text_color(g_qr_export.hint_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(g_qr_export.hint_label, &lv_font_montserrat_14, 0);
-        lv_label_set_text(g_qr_export.hint_label, "Press Esc to close");
+        lv_obj_set_style_text_font(g_qr_export.hint_label, get_ui_font(14), 0);
+        lv_label_set_text(g_qr_export.hint_label, "Press Esc or ` to close");
         return;
     }
 
@@ -337,13 +338,13 @@ void qr_export_open(const EditorState& editor) {
         lv_obj_set_width(g_qr_export.info_label, LV_PCT(95));
         lv_label_set_long_mode(g_qr_export.info_label, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(g_qr_export.info_label, theme.edit_text, 0);
-        lv_obj_set_style_text_font(g_qr_export.info_label, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(g_qr_export.info_label, get_ui_font(16), 0);
         g_qr_export.error_message = "Unable to determine QR payload capacity for this display size.";
         lv_label_set_text(g_qr_export.info_label, g_qr_export.error_message.c_str());
         g_qr_export.hint_label = lv_label_create(g_qr_export.overlay);
         lv_obj_set_style_text_color(g_qr_export.hint_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(g_qr_export.hint_label, &lv_font_montserrat_14, 0);
-        lv_label_set_text(g_qr_export.hint_label, "Press Esc to close");
+        lv_obj_set_style_text_font(g_qr_export.hint_label, get_ui_font(14), 0);
+        lv_label_set_text(g_qr_export.hint_label, "Press Esc or ` to close");
         return;
     }
 
@@ -369,13 +370,13 @@ void qr_export_open(const EditorState& editor) {
         lv_obj_set_width(g_qr_export.info_label, LV_PCT(95));
         lv_label_set_long_mode(g_qr_export.info_label, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(g_qr_export.info_label, theme.edit_text, 0);
-        lv_obj_set_style_text_font(g_qr_export.info_label, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(g_qr_export.info_label, get_ui_font(16), 0);
         g_qr_export.error_message = "Display is too small for current QR export envelope.";
         lv_label_set_text(g_qr_export.info_label, g_qr_export.error_message.c_str());
         g_qr_export.hint_label = lv_label_create(g_qr_export.overlay);
         lv_obj_set_style_text_color(g_qr_export.hint_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(g_qr_export.hint_label, &lv_font_montserrat_14, 0);
-        lv_label_set_text(g_qr_export.hint_label, "Press Esc to close");
+        lv_obj_set_style_text_font(g_qr_export.hint_label, get_ui_font(14), 0);
+        lv_label_set_text(g_qr_export.hint_label, "Press Esc or ` to close");
         return;
     }
 
@@ -393,11 +394,11 @@ void qr_export_open(const EditorState& editor) {
 
     g_qr_export.info_label = lv_label_create(g_qr_export.overlay);
     lv_obj_set_style_text_color(g_qr_export.info_label, theme.edit_text, 0);
-    lv_obj_set_style_text_font(g_qr_export.info_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(g_qr_export.info_label, get_ui_font(16), 0);
 
     g_qr_export.hint_label = lv_label_create(g_qr_export.overlay);
     lv_obj_set_style_text_color(g_qr_export.hint_label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(g_qr_export.hint_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(g_qr_export.hint_label, get_ui_font(14), 0);
 
     update_qr_export_popup_content();
 }

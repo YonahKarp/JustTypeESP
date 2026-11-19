@@ -1,4 +1,5 @@
 #include "search.h"
+#include "utf8_positions.h"
 #include <cstring>
 #include <cctype>
 
@@ -98,6 +99,16 @@ void perform_search(SearchState& search, const char* text, int text_len) {
         naive_search(search, text, text_len);
     }
     
+    int byte = 0, character = 0;
+    const int query_characters = utf8_length(search.query);
+    for (auto& match : search.matches) {
+        while (byte < match.start) {
+            if ((static_cast<unsigned char>(text[byte]) & 0xc0) != 0x80) ++character;
+            ++byte;
+        }
+        match.start = character;
+        match.end = character + query_characters;
+    }
     if (!search.matches.empty()) {
         search.current_match_index = 0;
     }

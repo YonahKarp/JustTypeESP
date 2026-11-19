@@ -1,4 +1,5 @@
 #include "textarea_utils.h"
+#include "utf8_positions.h"
 
 #include <cstring>
 #include <string>
@@ -32,7 +33,9 @@ static uint32_t get_selection_length(lv_obj_t* textarea) {
         return 0;
     }
 
-    return (sel_start > sel_end) ? (sel_start - sel_end) : (sel_end - sel_start);
+    const char* text = lv_textarea_get_text(textarea);
+    uint32_t a = utf8_byte(text, sel_start), b = utf8_byte(text, sel_end);
+    return a > b ? a-b : b-a;
 }
 
 bool textarea_delete_selected_text(lv_obj_t* textarea, uint32_t* out_cursor_pos) {

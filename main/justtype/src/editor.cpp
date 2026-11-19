@@ -1,23 +1,27 @@
+#include "backup/backup.h"
+#include "international_font.h"
 #include "editor.h"
+#include "file_manager.h"
 #include "editor_word_count.h"
 #include "theme.h"
 #include "search.h"
 #include <utility>
 #include <cstring>
 #include <fstream>
+#include <cstdio>
 
 static const lv_font_t* get_font_for_size_index(int index) {
     static const lv_font_t* fonts[] = {
-        &lv_font_montserrat_18,
-        &lv_font_montserrat_20,
-        &lv_font_montserrat_22,
-        &lv_font_montserrat_24,
-        &lv_font_montserrat_26,
-        &lv_font_montserrat_28,
-        &lv_font_montserrat_30,
-        &lv_font_montserrat_32,
-        &lv_font_montserrat_36,
-        &lv_font_montserrat_40,
+        get_ui_font(18),
+        get_ui_font(20),
+        get_ui_font(22),
+        get_ui_font(24),
+        get_ui_font(26),
+        get_ui_font(28),
+        get_ui_font(30),
+        get_ui_font(32),
+        get_ui_font(36),
+        get_ui_font(40),
     };
     constexpr int num_fonts = sizeof(fonts) / sizeof(fonts[0]);
     if (index < 0) index = 0;
@@ -64,7 +68,7 @@ void create_editor_ui(EditorState& state, lv_obj_t* parent) {
     state.filename_label = lv_label_create(state.status_bar);
     lv_label_set_text(state.filename_label, "Untitled");
     lv_obj_set_style_text_color(state.filename_label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(state.filename_label, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(state.filename_label, get_ui_font(18), 0);
     
     state.search_container = lv_obj_create(state.status_bar);
     lv_obj_remove_style_all(state.search_container);
@@ -92,7 +96,7 @@ void create_editor_ui(EditorState& state, lv_obj_t* parent) {
     lv_obj_set_style_outline_width(state.search_input, 0, LV_STATE_FOCUSED);
     lv_obj_set_style_outline_width(state.search_input, 0, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_text_color(state.search_input, theme.search_input_text, 0);
-    lv_obj_set_style_text_font(state.search_input, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(state.search_input, get_ui_font(16), 0);
     lv_obj_set_style_border_color(state.search_input, theme.search_input_text, LV_PART_CURSOR);
     lv_obj_set_style_border_color(state.search_input, theme.search_input_text, LV_PART_CURSOR | LV_STATE_FOCUSED);
     lv_obj_set_style_border_opa(state.search_input, LV_OPA_COVER, LV_PART_CURSOR);
@@ -105,12 +109,30 @@ void create_editor_ui(EditorState& state, lv_obj_t* parent) {
     state.match_label = lv_label_create(state.search_container);
     lv_label_set_text(state.match_label, "");
     lv_obj_set_style_text_color(state.match_label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(state.match_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(state.match_label, get_ui_font(14), 0);
     
     state.word_count_label = lv_label_create(state.status_bar);
     lv_label_set_text(state.word_count_label, "0 words");
     lv_obj_set_style_text_color(state.word_count_label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(state.word_count_label, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(state.word_count_label, get_ui_font(18), 0);
+
+    state.backup_progress_container = lv_obj_create(state.status_bar);
+    lv_obj_remove_style_all(state.backup_progress_container);
+    lv_obj_set_size(state.backup_progress_container, 120, 26);
+    lv_obj_remove_flag(state.backup_progress_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(state.backup_progress_container, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(state.backup_progress_container, LV_OBJ_FLAG_HIDDEN);
+    state.backup_progress_label = lv_label_create(state.backup_progress_container);
+    lv_obj_set_style_text_font(state.backup_progress_label, get_ui_font(14), 0);
+    lv_obj_set_style_text_color(state.backup_progress_label, theme.text_dim, 0);
+    lv_label_set_text(state.backup_progress_label, "Checking...");
+    lv_obj_align(state.backup_progress_label, LV_ALIGN_TOP_MID, 0, 0);
+    state.backup_progress_bar = lv_bar_create(state.backup_progress_container);
+    lv_obj_set_size(state.backup_progress_bar, 120, 4);
+    lv_obj_align(state.backup_progress_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_bar_set_range(state.backup_progress_bar, 0, 100);
+    lv_obj_set_style_bg_color(state.backup_progress_bar, theme.sidebar_btn_hover, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(state.backup_progress_bar, theme.battery_good, LV_PART_INDICATOR);
     
     lv_color_t fill_color = state.battery.percent > 20 ? theme.battery_good : theme.battery_low;
     create_battery_icon(state.battery, state.status_bar, state.battery.percent, theme.battery_border, fill_color);
@@ -159,30 +181,71 @@ void create_editor_ui(EditorState& state, lv_obj_t* parent) {
     lv_obj_add_flag(state.textarea, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 }
 
-void load_file_into_editor(EditorState& state, const char* file_path) {
+void update_editor_backup_progress(EditorState& state) {
+    if (!state.backup_progress_container) return;
+    const auto progress = backup::progress();
+    if (!progress.active) {
+        if (state.backup_progress_visible) {
+            lv_obj_add_flag(state.backup_progress_container, LV_OBJ_FLAG_HIDDEN);
+            if (lv_obj_has_flag(state.search_container, LV_OBJ_FLAG_HIDDEN))
+                lv_obj_remove_flag(state.word_count_label, LV_OBJ_FLAG_HIDDEN);
+            state.backup_progress_visible = false;
+        }
+        return;
+    }
+    if (!state.backup_progress_visible) {
+        lv_obj_remove_flag(state.backup_progress_container, LV_OBJ_FLAG_HIDDEN);
+        state.backup_progress_visible = true;
+        state.backup_progress_percent = -2;
+        state.backup_progress_phase = -1;
+    }
+    // Search shortcuts can also change this flag; keep the count out of the
+    // same slot while the progress widget is visible. Its cached count updates.
+    lv_obj_add_flag(state.word_count_label, LV_OBJ_FLAG_HIDDEN);
+    const int phase = static_cast<int>(progress.phase);
+    if (progress.percent != state.backup_progress_percent || phase != state.backup_progress_phase) {
+        using P = backup::ProgressPhase;
+        if (progress.phase == P::Checking) lv_label_set_text(state.backup_progress_label, "Checking...");
+        else if (progress.phase == P::Connecting) lv_label_set_text(state.backup_progress_label, "Connecting...");
+        else if (progress.phase == P::Finishing) lv_label_set_text(state.backup_progress_label, "Finishing...");
+        else lv_label_set_text_fmt(state.backup_progress_label, "%s %d%%",
+                                  progress.verification ? "Verify" : "Backup", progress.percent);
+        lv_bar_set_mode(state.backup_progress_bar, progress.percent < 0 ? LV_BAR_MODE_RANGE : LV_BAR_MODE_NORMAL);
+        if (progress.percent >= 0) lv_bar_set_value(state.backup_progress_bar, progress.percent, LV_ANIM_OFF);
+        state.backup_progress_percent = progress.percent;
+        state.backup_progress_phase = phase;
+    }
+    // Unknown scan length uses a moving segment, not a fabricated percentage.
+    const uint32_t now = lv_tick_get();
+    if (progress.percent < 0 && now - state.backup_progress_tick >= 100) {
+        state.backup_progress_tick = now;
+        unsigned position = (now / 20) % 160;
+        if (position > 80) position = 160 - position;
+        lv_bar_set_start_value(state.backup_progress_bar, 0, LV_ANIM_OFF);
+        lv_bar_set_value(state.backup_progress_bar, position + 20, LV_ANIM_OFF);
+        lv_bar_set_start_value(state.backup_progress_bar, position, LV_ANIM_OFF);
+    }
+}
+
+bool load_file_into_editor(EditorState& state, const char* file_path) {
+    // Validate and read before changing the active document or its dirty state.
+    std::ifstream infile(file_path, std::ios::binary | std::ios::ate);
+    if (!infile) return false;
+    const auto size = infile.tellg();
+    if (size < 0 || size > TEXT_BUFFER_SIZE - 1) {
+        fprintf(stderr, "Document exceeds editor size limit: %s\n", file_path);
+        return false;
+    }
+    std::string content(static_cast<size_t>(size), '\0');
+    infile.seekg(0);
+    if (size > 0 && !infile.read(content.data(), static_cast<std::streamsize>(size))) return false;
     state.current_file_path = file_path;
     state.temp_file_path = std::string(file_path) + ".tmp";
     state.suppress_change_tracking = true;
-    
-    std::ifstream infile(file_path);
-    if (infile) {
-        std::string content((std::istreambuf_iterator<char>(infile)),
-                            std::istreambuf_iterator<char>());
-        infile.close();
-        
-        if (content.size() >= TEXT_BUFFER_SIZE - 1) {
-            content = content.substr(0, TEXT_BUFFER_SIZE - 1);
-        }
-        
-        lv_textarea_set_text(state.textarea, content.c_str());
-        show_pending_word_count(state);
-        request_word_count(state, std::move(content));
-    } else {
-        lv_textarea_set_text(state.textarea, "");
-        show_pending_word_count(state);
-        request_word_count(state, std::string());
-    }
-    
+    lv_textarea_set_text(state.textarea, content.c_str());
+    show_pending_word_count(state);
+    request_word_count(state, std::move(content));
+
     update_filename_display(state);
     
     if (state.saved_cursor_pos >= 0) {
@@ -193,54 +256,53 @@ void load_file_into_editor(EditorState& state, const char* file_path) {
     state.suppress_change_tracking = false;
     state.content_pending_save = false;
     state.content_change_time = 0;
+    return true;
 }
 
-void save_editor_content(EditorState& state) {
+bool save_editor_content(EditorState& state) {
+    backup::before_storage_mutation();
     // Don't save if no file is open (e.g., after deleting the current file)
     if (state.current_file_path.empty() || state.temp_file_path.empty()) {
-        return;
+        return false;
     }
     
     const char* text = lv_textarea_get_text(state.textarea);
     
     std::ofstream outfile(state.temp_file_path, std::ios::binary | std::ios::trunc);
-    if (outfile) {
-        outfile.write(text, strlen(text));
-        bool write_success = outfile.good();
-        outfile.close();
-        if (write_success) {
-            std::rename(state.temp_file_path.c_str(), state.current_file_path.c_str());
-        }
-    }
+    if (!outfile) return false;
+    outfile.write(text, strlen(text));
+    outfile.close();
+    if (!outfile) return false;
+    return replace_saved_file(state.temp_file_path, state.current_file_path);
 }
 
-void flush_editor_content(EditorState& state) {
-    if (!state.content_pending_save) {
-        return;
+bool flush_editor_content(EditorState& state) {
+    if (!state.content_pending_save) return true;
+    if (!save_editor_content(state)) {
+        fprintf(stderr, "Document save failed: %s\n", state.current_file_path.c_str());
+        return false;
     }
-
-    save_editor_content(state);
     state.content_pending_save = false;
+    return true;
 }
 
-void save_editor_state(EditorState& state, const std::set<std::string>& collapsed_folders) {
+bool save_editor_state(EditorState& state, const std::set<std::string>& collapsed_folders) {
+    // Hidden UI metadata does not mutate the document being staged for backup.
     std::string temp_state_path = state.state_file_path + ".tmp";
     std::ofstream state_out(temp_state_path);
     if (state_out) {
         state_out << state.current_file_path << "\n";
         state_out << lv_textarea_get_cursor_pos(state.textarea) << "\n";
         state_out << state.font_size_index << "\n";
-        state_out << (state.dark_theme ? 1 : 0) << "\n";
+        state_out << state.dark_theme << "\n";
         state_out << collapsed_folders.size() << "\n";
         for (const auto& folder : collapsed_folders) {
             state_out << folder << "\n";
         }
-        bool write_success = state_out.good();
         state_out.close();
-        if (write_success) {
-            std::rename(temp_state_path.c_str(), state.state_file_path.c_str());
-        }
+        if (state_out) return replace_saved_file(temp_state_path, state.state_file_path);
     }
+    return false;
 }
 
 void load_collapsed_folders(const std::string& state_file_path, std::set<std::string>& collapsed_folders) {
@@ -265,7 +327,7 @@ void load_collapsed_folders(const std::string& state_file_path, std::set<std::st
     }
 }
 
-void update_editor_theme(EditorState& state, bool dark) {
+void update_editor_theme(EditorState& state, int dark) {
     state.dark_theme = dark;
     const Theme& theme = get_theme(dark);
     
@@ -287,6 +349,11 @@ void update_editor_theme(EditorState& state, bool dark) {
     
     if (state.word_count_label) {
         lv_obj_set_style_text_color(state.word_count_label, theme.text_dim, 0);
+    }
+    if (state.backup_progress_bar) {
+        lv_obj_set_style_text_color(state.backup_progress_label, theme.text_dim, 0);
+        lv_obj_set_style_bg_color(state.backup_progress_bar, theme.sidebar_btn_hover, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(state.backup_progress_bar, theme.battery_good, LV_PART_INDICATOR);
     }
     
     if (state.textarea) {
@@ -353,10 +420,7 @@ void update_filename_display(EditorState& state) {
             
             display_name = folder + " / " + filename;
         } else {
-            display_name = relative;
-            if (display_name.size() > 4 && display_name.substr(display_name.size() - 4) == ".txt") {
-                display_name = display_name.substr(0, display_name.size() - 4);
-            }
+            display_name = display_document_name(relative, "");
         }
     } else {
         size_t last_slash = state.current_file_path.find_last_of('/');
@@ -377,12 +441,12 @@ void update_filename_display(EditorState& state) {
 void process_pending_saves(EditorState& state, uint32_t debounce_delay, const std::set<std::string>& collapsed_folders) {
     uint32_t now = lv_tick_get();
     if (state.content_pending_save && (now - state.content_change_time >= debounce_delay)) {
-        save_editor_content(state);
-        state.content_pending_save = false;
+        if (save_editor_content(state)) state.content_pending_save = false;
+        else state.content_change_time = now; // Back off instead of retrying every UI iteration.
     }
     if (state.state_pending_save && (now - state.state_change_time >= debounce_delay)) {
-        save_editor_state(state, collapsed_folders);
-        state.state_pending_save = false;
+        if (save_editor_state(state, collapsed_folders)) state.state_pending_save = false;
+        else state.state_change_time = now;
     }
 }
 
@@ -397,4 +461,8 @@ void update_battery_display(EditorState& state) {
     
     lv_color_t fill_color = state.battery.percent > 20 ? theme.battery_good : theme.battery_low;
     update_battery_icon(state.battery, state.battery.percent, fill_color);
+}
+
+void update_editor_font(EditorState& state) {
+    if (state.textarea) lv_obj_set_style_text_font(state.textarea, get_font_for_size_index(state.font_size_index), 0);
 }

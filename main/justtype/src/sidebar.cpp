@@ -1,10 +1,14 @@
+#include "international_font.h"
 #include "sidebar.h"
+#include "textarea_utils.h"
+#include "settings.h"
 #include "sidebar_dialog.h"
 #include "sidebar_file_dialog.h"
 #include "sidebar_file.h"
 #include "editor.h"
 #include "theme.h"
 #include "file_manager.h"
+#include "platform.h"
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -93,11 +97,11 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
     lv_obj_t* title = lv_label_create(header);
     lv_label_set_text(title, "Files");
     lv_obj_set_style_text_color(title, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_font(title, get_ui_font(20), 0);
     
     lv_obj_t* btn_container = lv_obj_create(header);
     lv_obj_remove_style_all(btn_container);
-    lv_obj_set_size(btn_container, 80, 36);  // Fixed width for 2 buttons (36+8+36)
+    lv_obj_set_size(btn_container, 124, 36);  // Fixed width for 2 buttons (36+8+36)
     lv_obj_set_flex_flow(btn_container, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(btn_container, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(btn_container, 8, 0);
@@ -124,6 +128,18 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
     create_add_document_icon(sidebar.add_document_icon, sidebar.new_file_btn, 20, theme.sidebar_btn_text);
     lv_obj_center(sidebar.add_document_icon.canvas);
     
+    sidebar.settings_btn = lv_btn_create(btn_container);
+    lv_obj_set_size(sidebar.settings_btn, 36, 36);
+    lv_obj_set_style_bg_color(sidebar.settings_btn, theme.sidebar_new_file, 0);
+    lv_obj_set_style_radius(sidebar.settings_btn, 4, 0);
+    lv_obj_set_style_shadow_width(sidebar.settings_btn, 0, 0);
+    lv_obj_add_event_cb(sidebar.settings_btn, [](lv_event_t*) { if (g_sidebar && g_editor) settings_open(*g_sidebar, *g_editor); }, LV_EVENT_CLICKED, nullptr);
+    sidebar.settings_icon = lv_label_create(sidebar.settings_btn);
+    lv_label_set_text(sidebar.settings_icon, LV_SYMBOL_SETTINGS);
+    lv_obj_set_style_text_color(sidebar.settings_icon, theme.sidebar_btn_text, 0);
+    lv_obj_set_style_text_font(sidebar.settings_icon, get_ui_font(20), 0);
+    lv_obj_center(sidebar.settings_icon);
+
     sidebar.search_container = lv_obj_create(sidebar.sidebar_obj);
     lv_obj_remove_style_all(sidebar.search_container);
     lv_obj_set_size(sidebar.search_container, LV_PCT(100), 36);
@@ -152,7 +168,7 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
     lv_obj_set_style_outline_width(sidebar.search_input, 0, LV_STATE_FOCUSED);
     lv_obj_set_style_outline_width(sidebar.search_input, 0, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_text_color(sidebar.search_input, theme.search_input_text, 0);
-    lv_obj_set_style_text_font(sidebar.search_input, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(sidebar.search_input, get_ui_font(16), 0);
     lv_obj_set_style_border_color(sidebar.search_input, theme.cursor, LV_PART_CURSOR);
     lv_obj_set_style_border_color(sidebar.search_input, theme.cursor, LV_PART_CURSOR | LV_STATE_FOCUSED);
     lv_obj_set_style_border_opa(sidebar.search_input, LV_OPA_COVER, LV_PART_CURSOR);
@@ -184,7 +200,13 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
 
 static void sidebar_anim_cb(void* var, int32_t v) {
     lv_obj_t* obj = (lv_obj_t*)var;
-    lv_obj_set_x(obj, v);
+    if (g_sidebar && g_sidebar->snapshot.active()) g_sidebar->snapshot.move(v);
+    else lv_obj_set_x(obj, v);
+}
+
+static void show_anim_ready_cb(lv_anim_t*) {
+    if (g_sidebar) g_sidebar->slide_finished = true;
+    platform::finish_ui_animation();
 }
 
 void toggle_sidebar(SidebarState& sidebar, EditorState& editor) {
@@ -196,10 +218,13 @@ void toggle_sidebar(SidebarState& sidebar, EditorState& editor) {
 }
 
 void show_sidebar(SidebarState& sidebar, EditorState& editor) {
+    if (sidebar.animating) finish_sidebar_slide(sidebar);
+    const int32_t start_x = sidebar.animating ? lv_obj_get_x(sidebar.sidebar_obj) : -SidebarState::SIDEBAR_WIDTH;
+    platform::begin_ui_animation("sidebar open");
     sidebar.visible = true;
     sidebar.selected_index = 0;
-    sidebar.new_file_selected = false;
     sidebar.new_folder_selected = false;
+    sidebar.settings_selected = false;
     sidebar.searching = false;
     sidebar.search_buffer[0] = '\0';
     sidebar.search_len = 0;
@@ -208,54 +233,62 @@ void show_sidebar(SidebarState& sidebar, EditorState& editor) {
     
     lv_obj_add_flag(sidebar.search_container, LV_OBJ_FLAG_HIDDEN);
     
-    if (editor.textarea) {
-        lv_obj_set_style_border_opa(editor.textarea, LV_OPA_TRANSP, LV_PART_CURSOR);
-        lv_obj_set_style_border_opa(editor.textarea, LV_OPA_TRANSP, LV_PART_CURSOR | LV_STATE_FOCUSED);
-    }
-    
     scan_txt_files(sidebar, editor.user_files_dir);
     scan_deleted_files(sidebar, editor.recently_deleted_dir);
     filter_sidebar_files(sidebar);
+    // Filtering resets selection to the first result. Apply the menu-opening
+    // default afterwards, before drawing either live widgets or the snapshot.
+    sidebar.new_file_selected = true;
     refresh_file_list_ui(sidebar, editor);
     
     lv_obj_clear_flag(sidebar.sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+    sidebar.snapshot.prepare(sidebar.sidebar_obj, start_x);
     
     sidebar.animating = true;
+    sidebar.slide_finished = false;
     sidebar.anim_start_time = lv_tick_get();
+    sidebar.slide_pending = sidebar.snapshot.active();
+    if (sidebar.slide_pending) return;
     
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, sidebar.sidebar_obj);
-    lv_anim_set_values(&a, -SidebarState::SIDEBAR_WIDTH, 0);
+    // Reversing an unfinished slide continues from its current position.
+    lv_anim_set_values(&a, start_x, 0);
     lv_anim_set_duration(&a, SidebarState::ANIM_DURATION_MS);
     lv_anim_set_exec_cb(&a, sidebar_anim_cb);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, show_anim_ready_cb);
     lv_anim_start(&a);
 }
 
 static void hide_anim_ready_cb(lv_anim_t* a) {
-    lv_obj_t* obj = (lv_obj_t*)a->var;
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    (void)a;
+    if (g_sidebar) g_sidebar->slide_finished = true;
+    platform::finish_ui_animation();
 }
 
 void hide_sidebar(SidebarState& sidebar, EditorState& editor) {
+    if (sidebar.animating) finish_sidebar_slide(sidebar);
+    const int32_t start_x = sidebar.animating ? lv_obj_get_x(sidebar.sidebar_obj) : 0;
+    platform::begin_ui_animation("sidebar close");
     sidebar.visible = false;
     sidebar.searching = false;
     sidebar.renaming = false;
     sidebar.rename_pending = false;
     
-    if (editor.textarea) {
-        lv_obj_set_style_border_opa(editor.textarea, LV_OPA_COVER, LV_PART_CURSOR);
-        lv_obj_set_style_border_opa(editor.textarea, LV_OPA_COVER, LV_PART_CURSOR | LV_STATE_FOCUSED);
-    }
+    sidebar.snapshot.prepare(sidebar.sidebar_obj, start_x);
     
     sidebar.animating = true;
+    sidebar.slide_finished = false;
     sidebar.anim_start_time = lv_tick_get();
+    sidebar.slide_pending = sidebar.snapshot.active();
+    if (sidebar.slide_pending) return;
     
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, sidebar.sidebar_obj);
-    lv_anim_set_values(&a, 0, -SidebarState::SIDEBAR_WIDTH);
+    lv_anim_set_values(&a, start_x, -SidebarState::SIDEBAR_WIDTH);
     lv_anim_set_duration(&a, SidebarState::ANIM_DURATION_MS);
     lv_anim_set_exec_cb(&a, sidebar_anim_cb);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_in);
@@ -263,13 +296,55 @@ void hide_sidebar(SidebarState& sidebar, EditorState& editor) {
     lv_anim_start(&a);
 }
 
-void update_sidebar_theme(SidebarState& sidebar, bool dark) {
+void finish_sidebar_slide(SidebarState& sidebar) {
+    if (!sidebar.animating && !sidebar.snapshot.active()) return;
+    lv_anim_delete(sidebar.sidebar_obj, sidebar_anim_cb);
+    lv_obj_set_x(sidebar.sidebar_obj, sidebar.visible ? 0 : -SidebarState::SIDEBAR_WIDTH);
+    if (sidebar.visible) lv_obj_remove_flag(sidebar.sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(sidebar.sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+    sidebar.snapshot.reset();
+    sidebar.animating = sidebar.slide_finished = sidebar.slide_pending = false;
+    if (g_editor && g_editor->textarea) {
+        const auto opacity = sidebar.visible ? LV_OPA_TRANSP : LV_OPA_COVER;
+        lv_obj_set_style_border_opa(g_editor->textarea, opacity, LV_PART_CURSOR);
+        lv_obj_set_style_border_opa(g_editor->textarea, opacity, LV_PART_CURSOR | LV_STATE_FOCUSED);
+    }
+    platform::finish_ui_animation();
+}
+
+void update_sidebar_slide(SidebarState& sidebar) {
+    // The animation timer can complete after this iteration's refresh. Wait
+    // for a refresh containing the exact endpoint before deleting the backing;
+    // otherwise the expensive live-widget redraw delays the last visible step.
+    const int32_t endpoint = sidebar.visible ? 0 : -SidebarState::SIDEBAR_WIDTH;
+    if (sidebar.slide_finished &&
+        (!sidebar.snapshot.active() || sidebar.snapshot.presented_at(endpoint)))
+        finish_sidebar_slide(sidebar);
+    if (sidebar.slide_pending && sidebar.snapshot.presented()) {
+        sidebar.slide_pending = false;
+        sidebar.anim_start_time = lv_tick_get();
+        lv_anim_t animation;
+        lv_anim_init(&animation);
+        lv_anim_set_var(&animation, sidebar.sidebar_obj);
+        lv_anim_set_values(&animation, sidebar.visible ? -SidebarState::SIDEBAR_WIDTH : 0,
+                           sidebar.visible ? 0 : -SidebarState::SIDEBAR_WIDTH);
+        lv_anim_set_duration(&animation, SidebarState::ANIM_DURATION_MS);
+        lv_anim_set_exec_cb(&animation, sidebar_anim_cb);
+        lv_anim_set_path_cb(&animation, sidebar.visible ? lv_anim_path_ease_out : lv_anim_path_ease_in);
+        lv_anim_set_completed_cb(&animation, sidebar.visible ? show_anim_ready_cb : hide_anim_ready_cb);
+        lv_anim_start(&animation);
+    }
+}
+
+void update_sidebar_theme(SidebarState& sidebar, int dark) {
     const Theme& theme = get_theme(dark);
     
     if (sidebar.sidebar_obj) {
         lv_obj_set_style_bg_color(sidebar.sidebar_obj, theme.sidebar_bg, 0);
     }
     
+    if (sidebar.settings_btn) lv_obj_set_style_bg_color(sidebar.settings_btn, theme.sidebar_new_file, 0);
+    if (sidebar.settings_icon) lv_obj_set_style_text_color(sidebar.settings_icon, theme.sidebar_btn_text, 0);
     if (sidebar.new_file_btn) {
         lv_obj_set_style_bg_color(sidebar.new_file_btn, theme.sidebar_new_file, 0);
     }
@@ -380,6 +455,10 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
     
     lv_obj_clean(sidebar.file_list);
     
+    if (sidebar.settings_btn) {
+        lv_obj_set_style_border_width(sidebar.settings_btn, sidebar.settings_selected ? 2 : 0, 0);
+        lv_obj_set_style_border_color(sidebar.settings_btn, theme.sidebar_btn_text, 0);
+    }
     // Build display items
     sidebar.folder_data.build_display_items(sidebar.searching);
     
@@ -413,7 +492,7 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
     
     for (int i = 0; i < display_count; i++) {
         const SidebarItem& item = sidebar.folder_data.display_items[i];
-        bool is_selected = (!sidebar.new_file_selected && !sidebar.new_folder_selected && i == sidebar.selected_index);
+        bool is_selected = (!sidebar.settings_selected && !sidebar.new_file_selected && !sidebar.new_folder_selected && i == sidebar.selected_index);
         
         if (item.is_folder()) {
             bool is_expanded = sidebar.folder_data.collapsed_folders.find(item.name) == 
@@ -445,12 +524,12 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
                 lv_obj_t* chevron = lv_label_create(folder_btn);
                 lv_label_set_text(chevron, is_expanded ? LV_SYMBOL_DOWN : LV_SYMBOL_RIGHT);
                 lv_obj_set_style_text_color(chevron, theme.text_dim, 0);
-                lv_obj_set_style_text_font(chevron, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_font(chevron, get_ui_font(14), 0);
                 
                 lv_obj_t* folder_icon = lv_label_create(folder_btn);
                 lv_label_set_text(folder_icon, LV_SYMBOL_DIRECTORY);
                 lv_obj_set_style_text_color(folder_icon, theme.sidebar_btn_text, 0);
-                lv_obj_set_style_text_font(folder_icon, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_font(folder_icon, get_ui_font(14), 0);
                 
                 lv_obj_t* ta = lv_textarea_create(folder_btn);
                 lv_obj_set_flex_grow(ta, 1);
@@ -467,7 +546,7 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
                 lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUSED);
                 lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUS_KEY);
                 lv_obj_set_style_text_color(ta, theme.sidebar_btn_text, 0);
-                lv_obj_set_style_text_font(ta, &lv_font_montserrat_16, 0);
+                lv_obj_set_style_text_font(ta, get_ui_font(16), 0);
                 lv_obj_set_style_pad_left(ta, 4, 0);
                 lv_obj_set_style_pad_right(ta, 4, 0);
                 lv_obj_set_style_border_color(ta, theme.cursor, LV_PART_CURSOR);
@@ -483,18 +562,18 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
                 lv_obj_t* chevron = lv_label_create(folder_btn);
                 lv_label_set_text(chevron, is_expanded ? LV_SYMBOL_DOWN : LV_SYMBOL_RIGHT);
                 lv_obj_set_style_text_color(chevron, theme.text_dim, 0);
-                lv_obj_set_style_text_font(chevron, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_font(chevron, get_ui_font(14), 0);
                 
                 lv_obj_t* folder_icon = lv_label_create(folder_btn);
                 lv_label_set_text(folder_icon, LV_SYMBOL_DIRECTORY);
                 lv_obj_set_style_text_color(folder_icon, theme.sidebar_btn_text, 0);
-                lv_obj_set_style_text_font(folder_icon, &lv_font_montserrat_14, 0);
+                lv_obj_set_style_text_font(folder_icon, get_ui_font(14), 0);
                 
                 lv_obj_t* label = lv_label_create(folder_btn);
                 lv_label_set_text(label, item.name.c_str());
                 lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
                 lv_obj_set_style_text_color(label, theme.sidebar_btn_text, 0);
-                lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+                lv_obj_set_style_text_font(label, get_ui_font(16), 0);
             }
         } else {
             lv_obj_t* file_item = create_file_item_ui(
@@ -513,7 +592,7 @@ void refresh_file_list_ui(SidebarState& sidebar, EditorState& editor) {
         lv_obj_t* header_label = lv_label_create(header);
         lv_label_set_text(header_label, "Recently Deleted");
         lv_obj_set_style_text_color(header_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(header_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(header_label, get_ui_font(14), 0);
         lv_obj_align(header_label, LV_ALIGN_LEFT_MID, 10, 0);
         
         for (int i = 0; i < (int)sidebar.filtered_deleted_list.size(); i++) {
@@ -557,11 +636,15 @@ void toggle_sidebar_search(SidebarState& sidebar, EditorState& editor) {
 }
 
 void handle_sidebar_text_input(SidebarState& sidebar, EditorState& editor, const char* text) {
+    if (sidebar.renaming && sidebar.rename_textarea) {
+        textarea_add_text_with_limit(sidebar.rename_textarea, text, sizeof(sidebar.rename_buffer)-1);
+        return;
+    }
     if (sidebar.searching) {
         if (sidebar.search_len < (int)sizeof(sidebar.search_buffer) - 1) {
             int text_len = strlen(text);
             int remaining = sizeof(sidebar.search_buffer) - 1 - sidebar.search_len;
-            int copy_len = text_len < remaining ? text_len : remaining;
+            int copy_len = text_len <= remaining ? text_len : 0;
             memcpy(sidebar.search_buffer + sidebar.search_len, text, copy_len);
             sidebar.search_len += copy_len;
             sidebar.search_buffer[sidebar.search_len] = '\0';
@@ -575,7 +658,7 @@ void handle_sidebar_text_input(SidebarState& sidebar, EditorState& editor, const
 void handle_sidebar_backspace(SidebarState& sidebar, EditorState& editor) {
     if (sidebar.searching) {
         if (sidebar.search_len > 0) {
-            sidebar.search_len--;
+            do { sidebar.search_len--; } while (sidebar.search_len > 0 && (static_cast<unsigned char>(sidebar.search_buffer[sidebar.search_len]) & 0xc0) == 0x80);
             sidebar.search_buffer[sidebar.search_len] = '\0';
             lv_textarea_set_text(sidebar.search_input, sidebar.search_buffer);
             filter_sidebar_files(sidebar);

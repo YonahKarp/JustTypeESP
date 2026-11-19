@@ -9,6 +9,7 @@ namespace platform {
 enum class KeyCode {
     Unknown = 0,
     A,
+    B,
     P,
     C,
     F,
@@ -55,6 +56,7 @@ struct PlatformEvent {
     KeyCode key = KeyCode::Unknown;
     KeyModifiers modifiers {};
     bool repeat = false;
+    uint8_t hid_usage = 0;
     char text[32] = {0};
 };
 
@@ -68,8 +70,16 @@ bool poll_event(PlatformEvent& event, uint32_t timeout_ms);
 void requeue_last_event();
 void pump_events();
 
+// Aggregate UI-task animation timings; no per-frame logging or allocations.
+void begin_ui_animation(const char* name);
+void finish_ui_animation();
+void end_ui_animation();
+// UI-task-only copy of the last presented RGB565 image's left strip.
+bool copy_display_strip(uint8_t* destination, uint32_t stride, uint32_t width, uint32_t height);
+
 KeyModifiers get_key_modifiers();
 bool is_key_pressed(KeyCode key);
+bool was_key_pressed(KeyCode key);
 
 bool clipboard_set(const char* text);
 char* clipboard_get();

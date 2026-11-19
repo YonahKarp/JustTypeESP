@@ -76,3 +76,21 @@ Desktop.ini
 *.workspace # General workspace files, can be from various tools
 *.suo       # Visual Studio Solution User Options
 *.sln.docstates # Visual Studio
+
+/tools/font-build/
+
+/tools/keyboard_tests/*.obj
+/tools/keyboard_tests/*.exe
+
+/tools/spellcheck/expected_words.txt
+/tools/spellcheck/scowl.tar.gz
+/main/justtype/src/spelling/english.bin
+
+/main/backup/backup_secrets.h
+
+/tools/backup_tests/documents/
+/tools/backup_tests/*.obj
+/tools/backup_tests/*.exe
+
+/tools/input_tests/*.obj
+/tools/input_tests/*.exe

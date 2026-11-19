@@ -1,0 +1,20 @@
+menu "Leaf display"
+
+    choice LEAF_LCD_TIMING
+        prompt "RGB LCD timing preset"
+        default LEAF_LCD_TIMING_COMPARISON
+        help
+            Select the timing preset for the ESP32-8048S070 comparison.
+            This does not change framebuffer sizes or application behavior.
+
+        config LEAF_LCD_TIMING_BASELINE
+            bool "Baseline: 16 MHz, original blanking"
+
+        config LEAF_LCD_TIMING_COMPARISON
+            bool "Comparison: LovyanGFX Sunton preset, 14 MHz"
+            help
+                Experimental timing comparison based on LovyanGFX's
+                LGFX_Sunton_ESP32-8048S070.h. Validate on cold power-on.
+    endchoice
+
+endmenu

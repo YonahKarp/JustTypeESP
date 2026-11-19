@@ -20,6 +20,12 @@ struct EditorState {
     lv_obj_t* status_bar = nullptr;
     lv_obj_t* filename_label = nullptr;
     lv_obj_t* word_count_label = nullptr;
+    lv_obj_t* backup_progress_container = nullptr;
+    lv_obj_t* backup_progress_label = nullptr;
+    lv_obj_t* backup_progress_bar = nullptr;
+    bool backup_progress_visible = false;
+    int backup_progress_percent = -2, backup_progress_phase = -1;
+    uint32_t backup_progress_tick = 0;
     lv_obj_t* search_container = nullptr;
     lv_obj_t* search_input = nullptr;
     lv_obj_t* match_label = nullptr;
@@ -43,7 +49,7 @@ struct EditorState {
     int saved_cursor_pos = -1;
     bool suppress_change_tracking = false;
 
-    bool dark_theme = true;
+    int dark_theme = 1;
     int font_size_index = 3;
 
     int cached_word_count = 0;
@@ -54,14 +60,16 @@ void create_editor_ui(EditorState& state, lv_obj_t* parent);
 void start_editor_background_tasks(EditorState& state);
 void stop_editor_background_tasks(EditorState& state);
 void set_search_input_callback(EditorState& state, lv_event_cb_t cb, void* user_data);
-void load_file_into_editor(EditorState& state, const char* file_path);
-void save_editor_content(EditorState& state);
-void flush_editor_content(EditorState& state);
-void save_editor_state(EditorState& state, const std::set<std::string>& collapsed_folders);
+bool load_file_into_editor(EditorState& state, const char* file_path);
+bool save_editor_content(EditorState& state);
+bool flush_editor_content(EditorState& state);
+bool save_editor_state(EditorState& state, const std::set<std::string>& collapsed_folders);
 void load_collapsed_folders(const std::string& state_file_path, std::set<std::string>& collapsed_folders);
-void update_editor_theme(EditorState& state, bool dark);
+void update_editor_theme(EditorState& state, int dark);
+void update_editor_font(EditorState& state);
 void update_word_count(EditorState& state);
 void process_pending_word_count(EditorState& state, uint32_t debounce_delay);
 void update_filename_display(EditorState& state);
 void process_pending_saves(EditorState& state, uint32_t debounce_delay, const std::set<std::string>& collapsed_folders);
 void update_battery_display(EditorState& state);
+void update_editor_backup_progress(EditorState& state);

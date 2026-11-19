@@ -1,3 +1,5 @@
+#include "backup/backup.h"
+#include "international_font.h"
 #include "sidebar_file_dialog.h"
 #include "sidebar.h"
 #include "editor.h"
@@ -80,12 +82,12 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
     }
     lv_label_set_text(title, title_text);
     lv_obj_set_style_text_color(title, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(title, get_ui_font(18), 0);
     
     lv_obj_t* name_label = lv_label_create(sidebar.file_dialog);
     lv_label_set_text(name_label, "Name:");
     lv_obj_set_style_text_color(name_label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(name_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(name_label, get_ui_font(14), 0);
     
     sidebar.file_dialog_name_input = lv_textarea_create(sidebar.file_dialog);
     lv_obj_set_size(sidebar.file_dialog_name_input, LV_PCT(100), 36);
@@ -96,7 +98,8 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
     lv_obj_set_style_border_color(sidebar.file_dialog_name_input, theme.sidebar_btn_hover, 0);
     lv_obj_set_style_radius(sidebar.file_dialog_name_input, 4, 0);
     lv_obj_set_style_text_color(sidebar.file_dialog_name_input, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(sidebar.file_dialog_name_input, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(sidebar.file_dialog_name_input, theme.text_dim, LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_text_font(sidebar.file_dialog_name_input, get_ui_font(16), 0);
     lv_obj_set_style_pad_left(sidebar.file_dialog_name_input, 8, 0);
     lv_obj_set_style_outline_width(sidebar.file_dialog_name_input, 0, LV_STATE_FOCUSED);
     lv_obj_set_style_outline_width(sidebar.file_dialog_name_input, 0, LV_STATE_FOCUS_KEY);
@@ -112,7 +115,7 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
         lv_obj_t* folder_label = lv_label_create(sidebar.file_dialog);
         lv_label_set_text(folder_label, "Folder:");
         lv_obj_set_style_text_color(folder_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(folder_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(folder_label, get_ui_font(14), 0);
         
         sidebar.file_dialog_folder_dropdown = lv_dropdown_create(sidebar.file_dialog);
         lv_obj_set_size(sidebar.file_dialog_folder_dropdown, LV_PCT(100), 36);
@@ -122,7 +125,7 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
         lv_obj_set_style_border_color(sidebar.file_dialog_folder_dropdown, theme.sidebar_btn_hover, 0);
         lv_obj_set_style_radius(sidebar.file_dialog_folder_dropdown, 4, 0);
         lv_obj_set_style_text_color(sidebar.file_dialog_folder_dropdown, theme.sidebar_btn_text, 0);
-        lv_obj_set_style_text_font(sidebar.file_dialog_folder_dropdown, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(sidebar.file_dialog_folder_dropdown, get_ui_font(16), 0);
         lv_obj_set_style_pad_left(sidebar.file_dialog_folder_dropdown, 8, 0);
         
         std::string options;
@@ -135,7 +138,7 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
     if (mode == FILE_DIALOG_MODE_NEW_FILE) {
         std::string current_folder = get_current_folder(editor.current_file_path, editor.user_files_dir);
         int folder_index = get_folder_index(sidebar, current_folder);
-        lv_textarea_set_text(sidebar.file_dialog_name_input, "Untitled");
+        lv_textarea_set_placeholder_text(sidebar.file_dialog_name_input, "Untitled");
         lv_dropdown_set_selected(sidebar.file_dialog_folder_dropdown, folder_index);
     } else if (mode == FILE_DIALOG_MODE_MOVE_RENAME_FILE) {
         // Get the selected item from display_items (which includes folders)
@@ -152,7 +155,7 @@ void show_file_dialog(SidebarState& sidebar, EditorState& editor, int mode) {
             }
         }
     } else if (mode == FILE_DIALOG_MODE_NEW_FOLDER) {
-        lv_textarea_set_text(sidebar.file_dialog_name_input, "New Folder");
+        lv_textarea_set_placeholder_text(sidebar.file_dialog_name_input, "New Folder");
     } else if (mode == FILE_DIALOG_MODE_RENAME_FOLDER) {
         if (sidebar.selected_index >= 0 && sidebar.selected_index < (int)sidebar.folder_data.display_items.size()) {
             const SidebarItem& item = sidebar.folder_data.display_items[sidebar.selected_index];
@@ -214,7 +217,7 @@ static void update_dialog_selection_ui(SidebarState& sidebar, EditorState& edito
                 lv_obj_set_style_border_color(list, theme.sidebar_btn_hover, 0);
                 lv_obj_set_style_border_width(list, 1, 0);
                 lv_obj_set_style_text_color(list, theme.sidebar_btn_text, 0);
-                lv_obj_set_style_text_font(list, &lv_font_montserrat_16, 0);
+                lv_obj_set_style_text_font(list, get_ui_font(16), 0);
                 lv_obj_set_style_bg_color(list, theme.sidebar_selected, LV_PART_SELECTED);
                 lv_obj_set_style_text_color(list, theme.sidebar_btn_text, LV_PART_SELECTED);
                 lv_dropdown_close(sidebar.file_dialog_folder_dropdown);
@@ -246,9 +249,8 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
     const bool has_folder_dropdown = (sidebar.file_dialog_folder_dropdown != nullptr);
     const int max_selection = has_folder_dropdown ? 1 : 0;
     
-    platform::KeyModifiers modifiers = platform::get_key_modifiers();
-    bool close_shortcut = platform::is_key_pressed(platform::KeyCode::Escape) ||
-                          (platform::is_key_pressed(platform::KeyCode::Grave) && !modifiers.shift);
+    bool close_shortcut = platform::was_key_pressed(platform::KeyCode::Escape) ||
+                          platform::was_key_pressed(platform::KeyCode::Grave);
 
     if (close_shortcut) {
         last_nav_time = now;
@@ -257,14 +259,14 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
         return;
     }
     
-    if (platform::is_key_pressed(platform::KeyCode::Enter)) {
+    if (platform::was_key_pressed(platform::KeyCode::Enter)) {
         last_nav_time = now;
         dialog_open_time = 0;
         confirm_file_dialog(sidebar, editor);
         return;
     }
     
-    if (platform::is_key_pressed(platform::KeyCode::Up)) {
+    if (platform::was_key_pressed(platform::KeyCode::Up)) {
         last_nav_time = now;
         if (has_folder_dropdown && sidebar.file_dialog_selection == 1) {
             uint32_t sel = lv_dropdown_get_selected(sidebar.file_dialog_folder_dropdown);
@@ -281,7 +283,7 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
         return;
     }
     
-    if (platform::is_key_pressed(platform::KeyCode::Down)) {
+    if (platform::was_key_pressed(platform::KeyCode::Down)) {
         last_nav_time = now;
         if (has_folder_dropdown && sidebar.file_dialog_selection == 1) {
             uint32_t sel = lv_dropdown_get_selected(sidebar.file_dialog_folder_dropdown);
@@ -297,7 +299,7 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
     }
     
     if (has_folder_dropdown && sidebar.file_dialog_selection == 1) {
-        if (platform::is_key_pressed(platform::KeyCode::Left)) {
+        if (platform::was_key_pressed(platform::KeyCode::Left)) {
             last_nav_time = now;
             uint32_t sel = lv_dropdown_get_selected(sidebar.file_dialog_folder_dropdown);
             if (sel > 0) {
@@ -305,7 +307,7 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
             }
             return;
         }
-        if (platform::is_key_pressed(platform::KeyCode::Right)) {
+        if (platform::was_key_pressed(platform::KeyCode::Right)) {
             last_nav_time = now;
             uint32_t sel = lv_dropdown_get_selected(sidebar.file_dialog_folder_dropdown);
             uint32_t count = lv_dropdown_get_option_count(sidebar.file_dialog_folder_dropdown);
@@ -319,10 +321,17 @@ void handle_file_dialog_keyboard(SidebarState& sidebar, EditorState& editor) {
 }
 
 void confirm_file_dialog(SidebarState& sidebar, EditorState& editor) {
+    backup::before_storage_mutation();
     const char* name = lv_textarea_get_text(sidebar.file_dialog_name_input);
     if (!name || strlen(name) == 0) {
-        hide_file_dialog(sidebar);
-        return;
+        // Keep the existing default names when confirming an empty new-item
+        // field; the placeholder itself is never part of the entered text.
+        if (sidebar.file_dialog_mode == FILE_DIALOG_MODE_NEW_FILE) name = "Untitled";
+        else if (sidebar.file_dialog_mode == FILE_DIALOG_MODE_NEW_FOLDER) name = "New Folder";
+        else {
+            hide_file_dialog(sidebar);
+            return;
+        }
     }
     
     std::string folder;
@@ -359,11 +368,12 @@ void confirm_file_dialog(SidebarState& sidebar, EditorState& editor) {
             }
         }
         
+        if (!flush_editor_content(editor)) return;
+        if (!backup::mark_document_dirty(new_path)) return;
         std::ofstream new_file(new_path);
         new_file.close();
-        
-        flush_editor_content(editor);
-        
+        if (!new_file) return;
+
         scan_folders_and_files(sidebar.folder_data, editor.user_files_dir);
         filter_folder_entries(sidebar.folder_data, std::string(sidebar.search_buffer, sidebar.search_len));
         sidebar.folder_data.build_display_items(sidebar.searching);
@@ -379,7 +389,7 @@ void confirm_file_dialog(SidebarState& sidebar, EditorState& editor) {
         
         refresh_file_list_ui(sidebar, editor);
         
-        load_file_into_editor(editor, new_path.c_str());
+        if (!load_file_into_editor(editor, new_path.c_str())) return;
         hide_file_dialog(sidebar);
         return;
     }
@@ -448,6 +458,7 @@ void confirm_file_dialog(SidebarState& sidebar, EditorState& editor) {
     
     if (sidebar.file_dialog_mode == FILE_DIALOG_MODE_NEW_FOLDER) {
         std::string created_folder = create_folder(editor.user_files_dir, name);
+        if (created_folder.empty()) return;
         
         scan_folders_and_files(sidebar.folder_data, editor.user_files_dir);
         filter_folder_entries(sidebar.folder_data, std::string(sidebar.search_buffer, sidebar.search_len));

@@ -114,15 +114,32 @@ inline const Theme& get_light_theme_cached() {
     return theme;
 }
 
-inline const Theme& get_theme(bool dark_theme) {
-    return dark_theme ? get_dark_theme_cached() : get_light_theme_cached();
-}
-
-inline bool theme_changed(bool dark_theme) {
-    static bool last_dark_theme = !dark_theme;
-    if (last_dark_theme != dark_theme) {
-        last_dark_theme = dark_theme;
-        return true;
-    }
-    return false;
+// IDs 0 and 1 preserve the original light/dark preference on disk.
+inline const Theme& get_theme(int id) {
+    static const Theme ocean = [] { Theme t = get_dark_theme();
+        t.background = lv_color_hex(0x132839); t.edit_bg = lv_color_hex(0x10202e);
+        t.sidebar_bg = t.background; t.edit_text = lv_color_hex(0xd4eef0);
+        t.sidebar_btn_text = t.edit_text; t.text_dim = lv_color_hex(0x89b3bd);
+        t.sidebar_btn_normal = lv_color_hex(0x1c3748); t.sidebar_btn_hover = lv_color_hex(0x305c70);
+        t.sidebar_selected = lv_color_hex(0x31667a); t.sidebar_new_file = lv_color_hex(0x255366);
+        t.selection = lv_color_hex(0x32647a); t.search_input_bg = t.sidebar_btn_normal;
+        t.search_input_text = t.edit_text; return t; }();
+    static const Theme forest = [] { Theme t = get_dark_theme();
+        t.background = lv_color_hex(0x25382f); t.edit_bg = lv_color_hex(0x1a2c22);
+        t.sidebar_bg = t.background; t.edit_text = lv_color_hex(0xe0ead4);
+        t.sidebar_btn_text = t.edit_text; t.text_dim = lv_color_hex(0xabc39f);
+        t.sidebar_btn_normal = lv_color_hex(0x304838); t.sidebar_btn_hover = lv_color_hex(0x46664b);
+        t.sidebar_selected = lv_color_hex(0x4a7254); t.sidebar_new_file = lv_color_hex(0x456447);
+        t.selection = lv_color_hex(0x4c7054); t.search_input_bg = t.sidebar_btn_normal;
+        t.search_input_text = t.edit_text; return t; }();
+    static const Theme sunset = [] { Theme t = get_light_theme();
+        t.background = lv_color_hex(0xf4dec9); t.edit_bg = lv_color_hex(0xfff2df);
+        t.sidebar_bg = lv_color_hex(0xefd1bc); t.edit_text = lv_color_hex(0x4a3038);
+        t.sidebar_btn_text = t.edit_text; t.text_dim = lv_color_hex(0x8f6664);
+        t.sidebar_btn_normal = lv_color_hex(0xf6dfcd); t.sidebar_btn_hover = lv_color_hex(0xe4b69e);
+        t.sidebar_selected = lv_color_hex(0xeab49e); t.sidebar_new_file = lv_color_hex(0xe4b09c);
+        t.selection = lv_color_hex(0xe9bba6); t.search_input_bg = t.edit_bg;
+        t.search_input_text = t.edit_text; return t; }();
+    switch (id) { case 0: return get_light_theme_cached(); case 2: return ocean;
+        case 3: return forest; case 4: return sunset; default: return get_dark_theme_cached(); }
 }

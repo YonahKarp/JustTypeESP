@@ -1,3 +1,4 @@
+#include "backup/backup.h"
 #include "sidebar_file_utils.h"
 #include "sidebar.h"
 #include "editor.h"
@@ -11,8 +12,8 @@ void switch_to_file(SidebarState& sidebar, EditorState& editor, const std::strin
         return;
     }
 
-    flush_editor_content(editor);
-    load_file_into_editor(editor, new_path.c_str());
+    if (!flush_editor_content(editor)) return;
+    if (!load_file_into_editor(editor, new_path.c_str())) return;
     
     editor.state_pending_save = true;
     editor.state_change_time = lv_tick_get();
@@ -25,15 +26,16 @@ void switch_to_file_entry(SidebarState& sidebar, EditorState& editor, const Side
         return;
     }
 
-    flush_editor_content(editor);
-    load_file_into_editor(editor, new_path.c_str());
+    if (!flush_editor_content(editor)) return;
+    if (!load_file_into_editor(editor, new_path.c_str())) return;
     
     editor.state_pending_save = true;
     editor.state_change_time = lv_tick_get();
 }
 
 void create_new_file(SidebarState& sidebar, EditorState& editor, const std::string& folder) {
-    flush_editor_content(editor);
+    backup::before_storage_mutation();
+    if (!flush_editor_content(editor)) return;
     
     int counter = 1;
     std::string new_filename;
@@ -59,18 +61,21 @@ void create_new_file(SidebarState& sidebar, EditorState& editor, const std::stri
         counter++;
     }
     
+    if (!backup::mark_document_dirty(new_path)) return;
     std::ofstream new_file(new_path);
     new_file.close();
+    if (!new_file) return;
     
     scan_txt_files(sidebar, editor.user_files_dir);
     filter_sidebar_files(sidebar);
     refresh_file_list_ui(sidebar, editor);
     
-    load_file_into_editor(editor, new_path.c_str());
+    if (!load_file_into_editor(editor, new_path.c_str())) return;
     hide_sidebar(sidebar, editor);
 }
 
 void delete_file(SidebarState& sidebar, EditorState& editor, int index) {
+    backup::before_storage_mutation();
     // Use the stored item identity from show_delete_dialog instead of looking up by index
     // This ensures we delete the correct item even if the display list has changed
     const std::string& item_name = sidebar.delete_item_name;
@@ -78,9 +83,16 @@ void delete_file(SidebarState& sidebar, EditorState& editor, int index) {
     bool is_folder = sidebar.delete_item_is_folder;
     
     if (item_name.empty()) return;
+    if (!flush_editor_content(editor)) return;
     
     if (is_folder) {
-        delete_folder(editor.user_files_dir, item_name, editor.recently_deleted_dir);
+        if (!delete_folder(editor.user_files_dir, item_name, editor.recently_deleted_dir)) return;
+        const std::string prefix = editor.user_files_dir + "/" + item_name + "/";
+        if (editor.current_file_path.rfind(prefix, 0) == 0) {
+            editor.current_file_path.clear();
+            editor.temp_file_path.clear();
+            create_new_file(sidebar, editor);
+        }
         sidebar.folder_data.collapsed_folders.erase(item_name);
     } else {
         std::string file_path;
@@ -93,7 +105,7 @@ void delete_file(SidebarState& sidebar, EditorState& editor, int index) {
         std::string deleted_name = item_folder.empty() ? item_name : (item_folder + "__" + item_name);
         std::string deleted_path = editor.recently_deleted_dir + "/" + deleted_name;
         
-        std::rename(file_path.c_str(), deleted_path.c_str());
+        if (std::rename(file_path.c_str(), deleted_path.c_str()) != 0) return;
         
         if (file_path == editor.current_file_path) {
             // Clear current file path to prevent save_editor_content from recreating the deleted file
@@ -129,6 +141,7 @@ void delete_file(SidebarState& sidebar, EditorState& editor, int index) {
 }
 
 void restore_file(SidebarState& sidebar, EditorState& editor, int deleted_index) {
+    backup::before_storage_mutation();
     if (deleted_index < 0 || deleted_index >= (int)sidebar.filtered_deleted_list.size()) return;
     
     const std::string& filename = sidebar.filtered_deleted_list[deleted_index];
@@ -173,7 +186,8 @@ void restore_file(SidebarState& sidebar, EditorState& editor, int deleted_index)
         }
     }
     
-    std::rename(src_path.c_str(), dest_path.c_str());
+    if (!backup::mark_document_dirty(dest_path)) return;
+    if (std::rename(src_path.c_str(), dest_path.c_str()) != 0) return;
     
     scan_folders_and_files(sidebar.folder_data, editor.user_files_dir);
     scan_deleted_files(sidebar, editor.recently_deleted_dir);
@@ -210,6 +224,7 @@ void start_rename(SidebarState& sidebar, EditorState& editor) {
 }
 
 void commit_rename(SidebarState& sidebar, EditorState& editor) {
+    backup::before_storage_mutation();
     if (!sidebar.renaming || !sidebar.rename_textarea) return;
     
     const char* new_name = lv_textarea_get_text(sidebar.rename_textarea);
@@ -232,7 +247,14 @@ void commit_rename(SidebarState& sidebar, EditorState& editor) {
         std::string new_folder_name = new_name;
         
         if (old_name != new_folder_name) {
+            if (!flush_editor_content(editor)) return;
             if (rename_folder(editor.user_files_dir, old_name, new_folder_name)) {
+                const std::string prefix = editor.user_files_dir + "/" + old_name + "/";
+                if (editor.current_file_path.rfind(prefix, 0) == 0) {
+                    editor.current_file_path = editor.user_files_dir + "/" + new_folder_name + "/" + editor.current_file_path.substr(prefix.size());
+                    editor.temp_file_path = editor.current_file_path + ".tmp";
+                    update_filename_display(editor);
+                }
                 if (sidebar.folder_data.collapsed_folders.find(old_name) != 
                     sidebar.folder_data.collapsed_folders.end()) {
                     sidebar.folder_data.collapsed_folders.erase(old_name);
@@ -265,7 +287,8 @@ void commit_rename(SidebarState& sidebar, EditorState& editor) {
         if (old_path != new_path) {
             std::ifstream test(new_path);
             if (!test.good()) {
-                std::rename(old_path.c_str(), new_path.c_str());
+                if (!backup::mark_document_dirty(new_path)) return;
+                if (std::rename(old_path.c_str(), new_path.c_str()) != 0) return;
                 
                 bool was_current_file = (editor.current_file_path == old_path);
                 

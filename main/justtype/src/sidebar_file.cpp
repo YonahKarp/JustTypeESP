@@ -1,6 +1,8 @@
+#include "international_font.h"
 #include "sidebar_file.h"
 #include "sidebar.h"
 #include "theme.h"
+#include "file_manager.h"
 
 lv_obj_t* create_file_item_ui(
     SidebarState& sidebar,
@@ -46,7 +48,7 @@ lv_obj_t* create_file_item_ui(
         lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUSED);
         lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_text_color(ta, theme.sidebar_btn_text, 0);
-        lv_obj_set_style_text_font(ta, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(ta, get_ui_font(16), 0);
         lv_obj_set_style_pad_left(ta, 4, 0);
         lv_obj_set_style_pad_right(ta, 4, 0);
         lv_obj_set_style_border_color(ta, theme.cursor, LV_PART_CURSOR);
@@ -62,15 +64,12 @@ lv_obj_t* create_file_item_ui(
         // File name (top line)
         lv_obj_t* name_label = lv_label_create(file_item);
         
-        std::string display_name = item.name;
-        if (display_name.size() > 4 && display_name.substr(display_name.size() - 4) == ".txt") {
-            display_name = display_name.substr(0, display_name.size() - 4);
-        }
+        std::string display_name = display_document_name(item.name, item.folder);
         
         lv_label_set_text(name_label, display_name.c_str());
         lv_label_set_long_mode(name_label, LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_color(name_label, theme.sidebar_btn_text, 0);
-        lv_obj_set_style_text_font(name_label, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_text_font(name_label, get_ui_font(16), 0);
         lv_obj_set_pos(name_label, left_pad, 8);
         lv_obj_set_width(name_label, LV_PCT(100) - left_pad - 10);
         
@@ -90,7 +89,7 @@ lv_obj_t* create_file_item_ui(
         lv_label_set_text(subtitle_label, subtitle.c_str());
         lv_label_set_long_mode(subtitle_label, LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_color(subtitle_label, theme.text_dim, 0);
-        lv_obj_set_style_text_font(subtitle_label, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_text_font(subtitle_label, get_ui_font(14), 0);
         lv_obj_set_pos(subtitle_label, left_pad, 28);
         lv_obj_set_width(subtitle_label, LV_PCT(100) - left_pad - 10);
     }
@@ -124,7 +123,7 @@ lv_obj_t* create_deleted_file_item_ui(
     lv_label_set_text(label, display_name.c_str());
     lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(label, theme.text_dim, 0);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(label, get_ui_font(16), 0);
     lv_obj_align(label, LV_ALIGN_LEFT_MID, 10, 0);
     
     return file_item;

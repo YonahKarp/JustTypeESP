@@ -5,6 +5,7 @@
 #include "icons/add_folder_icon.h"
 #include "icons/magnifying_glass_icon.h"
 #include "sidebar_folder.h"
+#include "sidebar_snapshot.h"
 #include "sidebar_file_utils.h"
 #include <string>
 #include <vector>
@@ -15,6 +16,9 @@ struct SidebarState {
     lv_obj_t* sidebar_obj = nullptr;
     lv_obj_t* file_list = nullptr;
     lv_obj_t* new_file_btn = nullptr;
+    lv_obj_t* settings_btn = nullptr;
+    lv_obj_t* settings_icon = nullptr;
+    bool settings_selected = false;
     lv_obj_t* new_folder_btn = nullptr;
     lv_obj_t* search_container = nullptr;
     lv_obj_t* search_input = nullptr;
@@ -78,6 +82,9 @@ struct SidebarState {
     static constexpr uint32_t ANIM_DURATION_MS = 150;
     
     bool animating = false;
+    bool slide_finished = false;
+    bool slide_pending = false;
+    SidebarSnapshot snapshot;
     uint32_t anim_start_time = 0;
 };
 
@@ -85,7 +92,10 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
 void toggle_sidebar(SidebarState& sidebar, EditorState& editor);
 void show_sidebar(SidebarState& sidebar, EditorState& editor);
 void hide_sidebar(SidebarState& sidebar, EditorState& editor);
-void update_sidebar_theme(SidebarState& sidebar, bool dark);
+// Complete early on queue pressure, timeout or shutdown; restore live widgets.
+void finish_sidebar_slide(SidebarState& sidebar);
+void update_sidebar_slide(SidebarState& sidebar);
+void update_sidebar_theme(SidebarState& sidebar, int dark);
 
 void scan_txt_files(SidebarState& sidebar, const std::string& user_files_dir);
 void scan_deleted_files(SidebarState& sidebar, const std::string& recently_deleted_dir);

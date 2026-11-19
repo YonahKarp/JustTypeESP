@@ -1,3 +1,4 @@
+#include "international_font.h"
 #include "sidebar_dialog.h"
 #include "sidebar.h"
 #include "editor.h"
@@ -30,7 +31,7 @@ static lv_obj_t* create_confirmation_dialog(
     lv_obj_t* label = lv_label_create(dialog);
     lv_label_set_text(label, message);
     lv_obj_set_style_text_color(label, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_font(label, get_ui_font(16), 0);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
     *out_dialog_label = label;
     
@@ -49,7 +50,7 @@ static lv_obj_t* create_confirmation_dialog(
     lv_label_set_text(action_label, action_btn_text);
     lv_obj_center(action_label);
     lv_obj_set_style_text_color(action_label, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(action_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(action_label, get_ui_font(14), 0);
     *out_action_btn = action_btn;
     
     lv_obj_t* cancel_btn = lv_btn_create(btn_row);
@@ -61,7 +62,7 @@ static lv_obj_t* create_confirmation_dialog(
     lv_label_set_text(cancel_label, "Cancel");
     lv_obj_center(cancel_label);
     lv_obj_set_style_text_color(cancel_label, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(cancel_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(cancel_label, get_ui_font(14), 0);
     *out_cancel_btn = cancel_btn;
     
     return dialog;

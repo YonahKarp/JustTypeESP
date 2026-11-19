@@ -1,4 +1,5 @@
 #include "sidebar_folder.h"
+#include "backup/backup.h"
 #include "file_manager.h"
 #include <algorithm>
 #include <dirent.h>
@@ -137,7 +138,10 @@ void scan_folders_and_files(SidebarFolderData& data, const std::string& user_fil
                             file_entry.mod_time = file_stat.st_mtime;
                             struct tm* time_info = localtime(&file_entry.mod_time);
                             char date_buf[32];
-                            strftime(date_buf, sizeof(date_buf), "%m/%d/%y", time_info);
+                            if (time_info && time_info->tm_year >= 120)
+                                strftime(date_buf, sizeof(date_buf), "%m/%d/%y", time_info);
+                            else
+                                snprintf(date_buf, sizeof(date_buf), "Date unknown");
                             file_entry.date_str = date_buf;
                         }
                         
@@ -160,7 +164,10 @@ void scan_folders_and_files(SidebarFolderData& data, const std::string& user_fil
                 file_entry.mod_time = st.st_mtime;
                 struct tm* time_info = localtime(&file_entry.mod_time);
                 char date_buf[32];
-                strftime(date_buf, sizeof(date_buf), "%m/%d/%y", time_info);
+                if (time_info && time_info->tm_year >= 120)
+                    strftime(date_buf, sizeof(date_buf), "%m/%d/%y", time_info);
+                else
+                    snprintf(date_buf, sizeof(date_buf), "Date unknown");
                 file_entry.date_str = date_buf;
             }
             
@@ -179,6 +186,8 @@ void scan_folders_and_files(SidebarFolderData& data, const std::string& user_fil
 }
 
 std::string create_folder(const std::string& user_files_dir, const std::string& base_name) {
+    if (base_name.empty() || base_name == "." || base_name == ".." ||
+        base_name.find_first_of("/\\") != std::string::npos) return "";
     int counter = 1;
     std::string folder_name;
     std::string folder_path;
@@ -198,8 +207,11 @@ std::string create_folder(const std::string& user_files_dir, const std::string& 
         counter++;
     }
     
-    ensure_directory(folder_path);
-    return folder_name;
+#ifdef _WIN32
+    return mkdir(folder_path.c_str()) == 0 ? folder_name : "";
+#else
+    return mkdir(folder_path.c_str(), 0755) == 0 ? folder_name : "";
+#endif
 }
 
 bool rename_folder(const std::string& user_files_dir, const std::string& old_name, const std::string& new_name) {
@@ -214,6 +226,7 @@ bool rename_folder(const std::string& user_files_dir, const std::string& old_nam
         return false;
     }
     
+    if (!backup::mark_tree_dirty()) return false;
     return std::rename(old_path.c_str(), new_path.c_str()) == 0;
 }
 
@@ -250,6 +263,7 @@ bool delete_folder(const std::string& user_files_dir, const std::string& folder_
     }
     
     DIR* dir = opendir(folder_path.c_str());
+    if (!dir) return false;
     if (dir) {
         struct dirent* entry;
         while ((entry = readdir(dir)) != nullptr) {
@@ -260,16 +274,21 @@ bool delete_folder(const std::string& user_files_dir, const std::string& folder_
             if (name.size() > 4 && name.substr(name.size() - 4) == ".txt") {
                 std::string deleted_name = folder_name + "__" + name;
                 std::string deleted_path = recently_deleted_dir + "/" + deleted_name;
-                std::rename(file_path.c_str(), deleted_path.c_str());
+                if (std::rename(file_path.c_str(), deleted_path.c_str()) != 0) {
+                    closedir(dir);
+                    return false;
+                }
             } else {
-                std::remove(file_path.c_str());
+                if (std::remove(file_path.c_str()) != 0) {
+                    closedir(dir);
+                    return false;
+                }
             }
         }
         closedir(dir);
     }
     
-    rmdir(folder_path.c_str());
-    return true;
+    return rmdir(folder_path.c_str()) == 0;
 }
 
 bool move_file(const std::string& user_files_dir, const SidebarFileEntry& entry,
@@ -303,6 +322,7 @@ bool move_file(const std::string& user_files_dir, const SidebarFileEntry& entry,
         return false;
     }
     
+    if (!backup::mark_document_dirty(new_path)) return false;
     return std::rename(old_path.c_str(), new_path.c_str()) == 0;
 }
 
@@ -328,7 +348,8 @@ void filter_folder_entries(SidebarFolderData& data, const std::string& query) {
     data.filtered_entries.clear();
     
     for (const auto& entry : data.all_entries) {
-        if (case_insensitive_contains(entry.filename, query)) {
+        if (case_insensitive_contains(entry.filename, query) ||
+            case_insensitive_contains(display_document_name(entry.filename, entry.folder), query)) {
             data.filtered_entries.push_back(entry);
         }
     }
