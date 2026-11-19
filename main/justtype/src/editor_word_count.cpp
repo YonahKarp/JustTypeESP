@@ -87,8 +87,11 @@ void start_editor_background_tasks(EditorState& state) {
         return;
     }
 
+#ifndef __EMSCRIPTEN__
     state.word_count->worker_running = true;
     state.word_count->worker = std::thread(word_count_worker_main, &state);
+#endif
+    // Single-threaded browser builds use request_word_count's existing fallback.
 }
 
 void stop_editor_background_tasks(EditorState& state) {

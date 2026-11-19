@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Try Leaf · JustType</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <a class="brand" href="#">JUSTTYPE <span>LEAF</span></a
+        ><span class="badge">Browser demo</span>
+      </header>
+      <section class="intro">
+        <p class="eyebrow">A little room for your words</p>
+        <h1>Find your next sentence.</h1>
+        <p>
+          Experience Leaf’s writing software. Your keyboard, a quiet screen, and
+          space to think.
+        </p>
+      </section>
+      <div class="device">
+        <div class="device-top"><span>leaf</span><span class="dot"></span></div>
+        <canvas
+          id="screen"
+          width="800"
+          height="480"
+          tabindex="0"
+          aria-label="Leaf writing display. Click to type; use Menu to manage documents."
+        ></canvas
+        ><textarea
+          id="mobile-input"
+          aria-label="Type on Leaf"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        ></textarea>
+        <div class="device-bottom">JUSTTYPE <span>800 × 480</span></div>
+      </div>
+      <div class="toolbar">
+        <div>
+          <button id="menu" disabled>Menu</button
+          ><button id="keyboard" disabled>Type</button>
+        </div>
+        <div>
+          <button id="save" disabled>Save locally</button
+          ><button id="restart" disabled>Restart</button>
+        </div>
+      </div>
+      <p id="status" role="status">Starting Leaf…</p>
+      <div class="hints">
+        <p>
+          <kbd>Menu</kbd> Documents & settings<br /><kbd>↑ ↓</kbd> Navigate ·
+          <kbd>Enter</kbd> Choose · <kbd>Esc</kbd> Back
+        </p>
+        <p>
+          <kbd>Ctrl F</kbd> Find · <kbd>Ctrl A</kbd> Select all<br /><kbd
+            >Ctrl ← →</kbd
+          >
+          Move by word · <kbd>Shift ← →</kbd> Select
+        </p>
+      </div>
+      <footer>
+        Runs on your device. Documents stay in this browser.<br />Wi-Fi, Google
+        backup, Bluetooth, USB and battery hardware are unavailable. Keyboard
+        layouts follow Leaf’s settings. Touch typing uses your browser’s
+        keyboard.
+      </footer>
+    </main>
+    <script src="browser.js"></script>
+    <script async src="leaf.js"></script>
+  </body>
+</html>

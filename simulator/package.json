@@ -1,0 +1,10 @@
+{
+  "name": "leaf-simulator-tests",
+  "private": true,
+  "scripts": {
+    "test": "node test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}
