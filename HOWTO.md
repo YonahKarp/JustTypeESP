@@ -213,7 +213,25 @@ Dvorak, Dvorak right hand, Spanish (Spain), and Russian. Shortcuts use physical
 US key positions independently of the text layout. Enter on the binding row
 captures an unused Ctrl + letter, minus, or equals. Escape or backtick closes Settings, including during capture.
 Search, theme toggle, QR export, select-all, copy/cut/paste, and font-size
-shortcuts can be remapped. Navigation, Meta sidebar, and close keys stay fixed.
+shortcuts can be remapped. Navigation and the following interface keys stay fixed:
+Escape and backtick/tilde open or close the sidebar, dismissing an active dialog
+or search first. Command/Meta toggles Settings directly, including closing its
+nested forms. Escape/backtick/tilde
+continue to close Settings and its subdialogs, without also opening the sidebar.
+
+Settings -> Appearance -> Brightness changes the backlight in 10% steps with
+Left/Right (Enter increases). Option/Alt + minus lowers brightness; Option/Alt +
+equals raises it, including while Settings or Wi-Fi configuration is open.
+Brightness is limited to 10-100%, defaults to 100%, and is saved in ordinary NVS
+after 750 ms without another adjustment. Writes wait until a sidebar slide ends
+and retry after failures. This preference does not change LCD refresh timing.
+GPIO 2 uses hardware LEDC PWM at 300 Hz with 10-bit resolution and the crystal
+clock; 100% is full duty. The board blanked below 80% at 20 kHz and at 20%
+with 1.2 kHz, so lower-frequency pulses are used for its backlight enable. The PWM update resets the old brightness preference
+once to 100%; subsequent adjustments persist normally. PWM setup failure falls back to full brightness.
+
+`tools\backlight_tests\run.cmd` checks bounds, shortcut text consumption,
+debounced persistence/reboot loading, failed-write retries and hardware fallback.
 Reset keyboard defaults restores QWERTY and default bindings. Preferences save
 to `.keyboard`; save failures appear in the modal. Caps Lock and Spanish acute,
 grave, circumflex and diaeresis composition are supported. Right Alt supplies
@@ -289,8 +307,10 @@ drawing and buffer synchronization; it is wall time excluding the LCD wait,
 not an exclusive CPU-time measurement. No document content is logged.
 
 Idle and key-release passes do not rebuild the sidebar display list. Slides use
-RGB565 snapshots of the 280 x 480 menu and the covered editor strip: 537,600
-bytes (525 KiB) of temporary PSRAM, freed at completion. Allocation requires
+an RGB565 snapshot of only the 280 x 480 menu: 268,800 bytes (262.5 KiB) of
+temporary PSRAM, freed at completion. The clipping parent is transparent so the
+editor and its document-scroll animation remain live behind the menu. No editor
+or background snapshot is captured or displayed. Allocation requires
 another 512 KiB of PSRAM headroom; otherwise the live-widget animation is used.
 The clipped capture follows LVGL 9.2's internal snapshot draw path and must be
 reviewed when upgrading LVGL.
@@ -310,9 +330,7 @@ release, navigation, and stable free-PSRAM values after each backing is released
 
 The layout/copy figure separates work before drawing from the total refresh work.
 
-The animation clock starts after the initial cached scene is presented. Opening
-copies the editor strip from the last presented framebuffer when available;
-closing renders the hidden editor strip so document switches remain correct.
+The animation clock starts after the initial menu scene is presented.
 Focus/cursor style changes wait until the slide is complete. Backing is retained
 until the exact cached endpoint has been presented before handing back to live
 widgets, avoiding a delayed final movement during the heavier live redraw.

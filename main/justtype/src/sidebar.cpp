@@ -236,9 +236,29 @@ void show_sidebar(SidebarState& sidebar, EditorState& editor) {
     scan_txt_files(sidebar, editor.user_files_dir);
     scan_deleted_files(sidebar, editor.recently_deleted_dir);
     filter_sidebar_files(sidebar);
-    // Filtering resets selection to the first result. Apply the menu-opening
-    // default afterwards, before drawing either live widgets or the snapshot.
+    // Filtering resets selection. Reveal the open document before building
+    // rows and taking the menu snapshot; retain New File as the fallback.
     sidebar.new_file_selected = true;
+    for (const auto& entry : sidebar.folder_data.filtered_entries) {
+        if (editor.user_files_dir + "/" + sidebar.folder_data.get_relative_path(entry) !=
+            editor.current_file_path) continue;
+        if (!entry.folder.empty() && sidebar.folder_data.collapsed_folders.erase(entry.folder)) {
+            editor.state_pending_save = true;
+            editor.state_change_time = lv_tick_get();
+        }
+        break;
+    }
+    sidebar.folder_data.build_display_items(false);
+    for (size_t index = 0; index < sidebar.folder_data.display_items.size(); ++index) {
+        const auto& item = sidebar.folder_data.display_items[index];
+        if (!item.is_file()) continue;
+        const std::string relative = item.folder.empty() ? item.name : item.folder + "/" + item.name;
+        if (editor.user_files_dir + "/" + relative == editor.current_file_path) {
+            sidebar.selected_index = static_cast<int>(index);
+            sidebar.new_file_selected = false;
+            break;
+        }
+    }
     refresh_file_list_ui(sidebar, editor);
     
     lv_obj_clear_flag(sidebar.sidebar_obj, LV_OBJ_FLAG_HIDDEN);

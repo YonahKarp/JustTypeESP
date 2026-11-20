@@ -94,3 +94,6 @@ Desktop.ini
 
 /tools/input_tests/*.obj
 /tools/input_tests/*.exe
+
+/tools/backlight_tests/*.obj
+/tools/backlight_tests/*.exe

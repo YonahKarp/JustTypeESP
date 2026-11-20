@@ -1,5 +1,6 @@
 #include "justtype/platforms/platform.h"
 #include "keyboard_input.h"
+#include "backlight.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -53,7 +54,6 @@ wl_handle_t g_documents_wl = WL_INVALID_HANDLE;
 SemaphoreHandle_t g_frame_complete = nullptr;
 DRAM_ATTR StaticSemaphore_t g_frame_complete_storage;
 uint32_t g_frame_sequence = 0;
-const uint8_t *g_presented_pixels = nullptr;
 
 struct AnimationTrace {
     const char *name = nullptr;
@@ -112,7 +112,6 @@ void lvgl_flush_cb(lv_display_t *disp, const lv_area_t *, uint8_t *px_map) {
                 continue;
             }
         }
-        g_presented_pixels = px_map;
         if (g_animation_trace.name) {
             auto &trace = g_animation_trace;
             const int64_t now = esp_timer_get_time();
@@ -377,11 +376,12 @@ bool init(int32_t width, int32_t height) {
     ESP_ERROR_CHECK(esp_timer_create(&tick_args, &g_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(g_tick_timer, 2000));
 
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)LCD_BKLT_GPIO, 1));
+    backlight::init(LCD_BKLT_GPIO);
     return true;
 }
 
 void shutdown() {
+    backlight::shutdown();
     if (g_tick_timer) {
         esp_timer_stop(g_tick_timer);
         esp_timer_delete(g_tick_timer);
@@ -418,16 +418,7 @@ void requeue_last_event() {
 }
 
 void pump_events() {
-}
-
-bool copy_display_strip(uint8_t *destination, uint32_t stride, uint32_t width, uint32_t height) {
-    if (!g_presented_pixels || !destination || width > LCD_H_RES || height > LCD_V_RES || stride < width * 2)
-        return false;
-    // The UI task cannot render/swap during this copy. DMA only reads this
-    // framebuffer, so the last presented pixels remain a stable source.
-    for (uint32_t row = 0; row < height; ++row)
-        std::memcpy(destination + row * stride, g_presented_pixels + row * LCD_H_RES * 2, width * 2);
-    return true;
+    backlight::service(!g_animation_trace.name);
 }
 
 void begin_ui_animation(const char *name) {

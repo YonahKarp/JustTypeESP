@@ -1,7 +1,7 @@
 #pragma once
 #include "lvgl.h"
 
-// Temporary RGB565 backing for the sidebar and the editor strip it covers.
+// Temporary RGB565 backing for the sidebar only; the editor stays live.
 // All operations, including destruction, belong to the UI task.
 class SidebarSnapshot {
 public:
@@ -14,7 +14,6 @@ public:
 private:
     lv_obj_t* layer_ = nullptr;
     lv_obj_t* menu_image_ = nullptr;
-    lv_draw_buf_t* editor_ = nullptr;
     lv_draw_buf_t* menu_ = nullptr;
     bool presented_ = false;
     int32_t presented_x_ = 0;

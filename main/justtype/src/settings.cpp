@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "backlight.h"
 #include "backup/backup.h"
 #include "editor.h"
 #include "international_font.h"
@@ -285,7 +286,7 @@ void refresh() {
     lv_obj_set_style_text_color(tab_labels[i], t.sidebar_btn_text, 0);
   }
   for (int i = 0; i < 7; ++i) {
-    if (i >= (tab == 0 ? 4 : tab == 1 ? 5 : 7))
+    if (i >= (tab == 2 ? 7 : 5))
       lv_obj_add_flag(rows[i], LV_OBJ_FLAG_HIDDEN);
     else
       lv_obj_remove_flag(rows[i], LV_OBJ_FLAG_HIDDEN);
@@ -350,7 +351,8 @@ void refresh() {
            sizes[editor_ptr->font_size_index]);
   lv_label_set_text(labels[1], text);
   lv_label_set_text(labels[2], "Font                         Montserrat");
-  lv_label_set_text(labels[3], "Close");
+  lv_label_set_text_fmt(labels[3], "Brightness               <  %d%%  >   (Opt -/=)", backlight::percent());
+  lv_label_set_text(labels[4], "Close");
 }
 void close() {
   if (!overlay)
@@ -410,6 +412,10 @@ void change(int delta) {
     editor_ptr->font_size_index =
         std::max(0, std::min(9, editor_ptr->font_size_index + delta));
     update_editor_font(*editor_ptr);
+  } else if (selection == 3) {
+    notice = backlight::adjust(delta * 10) ? nullptr : "Brightness control unavailable.";
+    refresh();
+    return;
   } else
     return;
   editor_ptr->state_pending_save = true;
@@ -482,7 +488,7 @@ void settings_open(SidebarState &sidebar, EditorState &editor) {
               reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
           selection = row;
           notice = nullptr;
-          if (row == (tab == 0 ? 3 : tab == 1 ? 4 : 6))
+          if (row == (tab == 2 ? 6 : 4))
             close();
           else if (tab == 2)
             change(1);
@@ -494,7 +500,7 @@ void settings_open(SidebarState &sidebar, EditorState &editor) {
             if (!keyboard_config::save())
               notice = "Could not save keyboard settings.";
             refresh();
-          } else if (row < 2)
+          } else if (row < 2 || (tab == 0 && row == 3))
             change(1);
           else
             refresh();
@@ -506,7 +512,7 @@ void settings_open(SidebarState &sidebar, EditorState &editor) {
   }
   lv_obj_t *hint = hint_label = lv_label_create(panel);
   lv_label_set_text(hint,
-                    "Up/Down select   Left/Right change   Esc or ~ close");
+                    "Up/Down select   Left/Right change   Cmd / Esc / ~ close");
   lv_obj_set_style_text_font(hint, get_ui_font(14), 0);
   lv_obj_set_style_text_color(hint, get_theme(editor.dark_theme).text_dim, 0);
   lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -528,6 +534,13 @@ void settings_handle_event(const platform::PlatformEvent &e, SidebarState &,
                            EditorState &) {
   if (!overlay)
     return;
+  // Command toggles the whole Settings overlay, including its nested forms.
+  // Handle it before those forms or shortcut capture consume the key.
+  if (e.type == platform::PlatformEvent::Type::KeyDown &&
+      e.key == platform::KeyCode::Meta) {
+    close();
+    return;
+  }
   if (wifi_form) {
     wifi_event(e);
     return;
@@ -562,7 +575,7 @@ void settings_handle_event(const platform::PlatformEvent &e, SidebarState &,
     return;
   }
   notice = nullptr;
-  const int count = tab == 0 ? 4 : tab == 1 ? 5 : 7;
+  const int count = tab == 2 ? 7 : 5;
   if (e.key == K::Tab) {
     tab = (tab + 1) % 3;
     selection = 0;

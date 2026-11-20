@@ -92,7 +92,15 @@ bool contains(const uint8_t* report, uint8_t usage) {
     return false;
 }
 
+// Treat the six boot-report slots as a set. Some keyboards repeat a usage
+// (the prototype sends Right Arrow twice), which must not duplicate edges.
+bool first_slot(const uint8_t* keys, int slot) {
+    for (int i = 2; i < slot; ++i) if (keys[i] == keys[slot]) return false;
+    return true;
+}
+
 void update_modifiers(uint8_t bits) {
+    const bool previous_meta = active_modifiers.meta;
     active_modifiers.ctrl = (bits & 0x11) != 0;
     active_modifiers.shift = (bits & 0x22) != 0;
     active_modifiers.alt = (bits & 0x44) != 0;
@@ -101,6 +109,16 @@ void update_modifiers(uint8_t bits) {
     held[static_cast<size_t>(platform::KeyCode::Shift)] = active_modifiers.shift;
     held[static_cast<size_t>(platform::KeyCode::Alt)] = active_modifiers.alt;
     held[static_cast<size_t>(platform::KeyCode::Meta)] = active_modifiers.meta;
+    // Command is a standalone UI shortcut. Emit real edges so releasing it
+    // inside a modal cannot leave an application-level edge detector stale.
+    if (previous_meta != active_modifiers.meta) {
+        platform::PlatformEvent event{};
+        event.type = active_modifiers.meta ? platform::PlatformEvent::Type::KeyDown
+                                          : platform::PlatformEvent::Type::KeyUp;
+        event.key = platform::KeyCode::Meta;
+        event.modifiers = active_modifiers;
+        push(event);
+    }
 }
 
 void emit_key(uint8_t usage, bool down) {
@@ -146,11 +164,11 @@ void decode(const Report& report) {
     previous[0] = report.keys[0];
     update_modifiers(report.keys[0]);
     for (int i = 2; i < 8; ++i) {
-        if (previous[i] && !contains(report.keys, previous[i])) emit_key(previous[i], false);
+        if (previous[i] && first_slot(previous, i) && !contains(report.keys, previous[i])) emit_key(previous[i], false);
     }
     for (int i = 2; i < 8; ++i) {
         const uint8_t usage = report.keys[i];
-        if (usage && !contains(previous, usage)) emit_key(usage, true);
+        if (usage && first_slot(report.keys, i) && !contains(previous, usage)) emit_key(usage, true);
     }
     std::memcpy(previous, report.keys, sizeof(previous));
 }

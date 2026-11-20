@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "esp_port_main.cpp"
         "platform_esp.cpp"
+        "backlight.cpp"
         "serial_export.cpp"
         "backup/backup.cpp"
         "backup/storage.cpp"
@@ -48,6 +49,7 @@ idf_component_register(
         spi_flash
         esp_lcd
         driver
+        esp_driver_ledc
         esp_timer
         spiffs
         fatfs

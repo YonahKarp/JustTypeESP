@@ -74,8 +74,6 @@ void pump_events();
 void begin_ui_animation(const char* name);
 void finish_ui_animation();
 void end_ui_animation();
-// UI-task-only copy of the last presented RGB565 image's left strip.
-bool copy_display_strip(uint8_t* destination, uint32_t stride, uint32_t width, uint32_t height);
 
 KeyModifiers get_key_modifiers();
 bool is_key_pressed(KeyCode key);

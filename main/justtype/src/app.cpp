@@ -6,6 +6,7 @@
 #include "spellcheck.h"
 #include "serial_export.h"
 #include "keyboard_input.h"
+#include "backlight.h"
 #include "keyboard_config.h"
 #include "editor.h"
 #include "sidebar.h"
@@ -851,41 +852,38 @@ static void handle_search_navigation() {
     }
 }
 
-static void handle_shortcuts() {
-    static bool last_meta = false;
-
+static bool handle_shortcuts() {
     if (qr_export_is_active()) {
-        return;
+        return true;
     }
 
     platform::KeyModifiers modifiers = platform::get_key_modifiers();
-    bool meta_pressed = modifiers.meta;
     bool ctrl = modifiers.ctrl;
 
-    if (meta_pressed && !last_meta) {
-        if (g_sidebar.file_dialog_active) {
-            hide_file_dialog(g_sidebar);
-            hide_sidebar(g_sidebar, g_editor);
-            focus_editor_textarea();
-        } else {
-            toggle_sidebar(g_sidebar, g_editor);
-            if (g_sidebar.visible) {
-                focus_sidebar_search();
-            } else {
-                focus_editor_textarea();
-            }
-        }
+    if (platform::was_key_pressed(platform::KeyCode::Meta)) {
+        settings_open(g_sidebar, g_editor);
+        return true;
+    }
+
+    if (is_close_shortcut_pressed()) {
+        // Dismiss just the current surface. With no surface open, these keys
+        // open the sidebar instead of being delivered to the editor.
+        if (g_sidebar.visible) handle_sidebar_keyboard();
+        else if (g_search.active) handle_search_navigation();
+        else { show_sidebar(g_sidebar, g_editor); focus_sidebar_search(); }
+        return true;
     }
 
     if (g_sidebar.visible) {
         handle_sidebar_keyboard();
+        if (settings_active()) return true;
     }
 
     if (ctrl) {
         if (platform::was_key_pressed(platform::KeyCode::B)) backup::request_now();
         if (platform::was_key_pressed(platform::KeyCode::P)) {
             qr_export_open(g_editor);
-            return;
+            return true;
         }
 
         if (platform::was_key_pressed(platform::KeyCode::A) && !g_sidebar.visible) {
@@ -957,7 +955,7 @@ static void handle_shortcuts() {
         }
     }
 
-    last_meta = meta_pressed;
+    return false;
 }
 
 static void load_editor_state(EditorState& state, const char* state_file_path,
@@ -1137,6 +1135,15 @@ void run_app(App& app) {
             // Wait only for the first event in a batch.
             platform::PlatformEvent wait_event {};
             bool had_event = platform::poll_event(wait_event, batch == 0 ? wait_time : 0);
+            if (had_event && backlight::handle_event(wait_event)) {
+                keyboard_config::cancel_composition();
+                backup::note_input();
+                continue;
+            }
+            // Clear even if the release is consumed by a modal or the sidebar.
+            if (had_event && wait_event.type == platform::PlatformEvent::Type::KeyUp &&
+                wait_event.key == platform::KeyCode::Grave)
+                g_suppress_close_shortcut_text = false;
 
             // Process the event we received
             const bool settings_was_active = settings_active();
@@ -1144,6 +1151,12 @@ void run_app(App& app) {
             const bool tooltip_was_active = spellcheck::tooltip_active();
             bool tooltip_consumed = false;
             if (had_event) {
+                if (wait_event.type == platform::PlatformEvent::Type::KeyDown &&
+                    wait_event.key == platform::KeyCode::Escape && wait_event.modifiers.meta &&
+                    wait_event.modifiers.shift && wait_event.modifiers.alt) {
+                    running = false;
+                    break;
+                }
                 backup::note_input();
                 bool consumed = spellcheck::handle_event(wait_event, g_editor,
                     !settings_was_active && !qr_was_active && !g_sidebar.visible && !g_search.active &&
@@ -1170,18 +1183,10 @@ void run_app(App& app) {
                 }
 
                 if (!consumed && !qr_export_is_active() && wait_event.type == platform::PlatformEvent::Type::KeyDown) {
-                    // Check for force quit shortcut
-                    if (wait_event.key == platform::KeyCode::Escape &&
-                        wait_event.modifiers.meta &&
-                        wait_event.modifiers.shift &&
-                        wait_event.modifiers.alt) {
-                        running = false;
+                    if (is_close_shortcut_event(wait_event)) {
+                        if (wait_event.key == platform::KeyCode::Grave)
+                            g_suppress_close_shortcut_text = true;
                         consumed = true;
-                    }
-                    if (is_close_shortcut_event(wait_event) &&
-                        wait_event.key == platform::KeyCode::Grave &&
-                        (g_search.active || g_sidebar.visible)) {
-                        g_suppress_close_shortcut_text = true;
                     }
                     // Consume Ctrl+Arrow keys so LVGL doesn't also handle them
                     if (wait_event.modifiers.ctrl &&
@@ -1271,7 +1276,7 @@ void run_app(App& app) {
 
                 // Handle text input - intercept when sidebar is visible
                 if (!consumed && !qr_export_is_active() && wait_event.type == platform::PlatformEvent::Type::TextInput) {
-                    if (g_suppress_close_shortcut_text) {
+                    if (g_suppress_close_shortcut_text && wait_event.hid_usage == 0x35) {
                         g_suppress_close_shortcut_text = false;
                         consumed = true;
                     } else if (g_sidebar.visible && (g_sidebar.searching || g_sidebar.renaming)) {
@@ -1303,10 +1308,11 @@ void run_app(App& app) {
             }
 
             if (!qr_export_is_active() && !settings_active() && !settings_was_active && !qr_was_active && !tooltip_was_active && !tooltip_consumed && !spellcheck::tooltip_active()) {
-                handle_shortcuts();
-                handle_search_navigation();
-                handle_text_selection();
-                handle_clipboard();
+                if (!handle_shortcuts()) {
+                    handle_search_navigation();
+                    handle_text_selection();
+                    handle_clipboard();
+                }
             }
             if (!had_event || !running) break;
         }

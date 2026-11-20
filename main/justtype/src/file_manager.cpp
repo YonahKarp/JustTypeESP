@@ -42,6 +42,8 @@ void ensure_shortcuts_file(const std::string& user_files_dir) {
         file << "Ctrl + P          Export as QR codes\n";
         file << "Ctrl + +          Increase font size\n";
         file << "Ctrl + -          Decrease font size\n";
+        file << "Option/Alt + -    Lower backlight brightness\n";
+        file << "Option/Alt + =    Raise backlight brightness\n";
         file << "Ctrl + Up         Jump to previous paragraph\n";
         file << "Ctrl + Down       Jump to next paragraph\n";
         file << "Alt + Up          Jump to top of document\n";
@@ -49,12 +51,13 @@ void ensure_shortcuts_file(const std::string& user_files_dir) {
         file << "Ctrl + A          Select all\n";
         file << "Ctrl + Z          Undo\n";
         file << "Ctrl + Backspace  Delete word\n";
-        file << "Meta (GUI key)    Toggle sidebar\n";
+        file << "Escape or ` / ~   Open/close sidebar (dismiss active dialog/search first)\n";
+        file << "Command / Meta   Open/close Settings directly\n";
         file << "\n";
         file << "Search Mode:\n";
         file << "  Enter           Next match\n";
         file << "  Shift + Enter   Previous match\n";
-        file << "  Escape          Close search\n";
+        file << "  Escape or ` / ~ Close search\n";
         file.close();
     }
 }
