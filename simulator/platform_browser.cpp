@@ -5,6 +5,8 @@
 #include "settings.h"
 #include "file_manager.h"
 #include "keyboard_input.h"
+#include "keyboard_timing.h"
+#include "backlight.h"
 #include <emscripten.h>
 #include <algorithm>
 #include <cstdlib>
@@ -39,9 +41,11 @@ bool init(int32_t, int32_t) {
     keyboard = lv_indev_create();
     lv_indev_set_type(keyboard, LV_INDEV_TYPE_KEYPAD);
     lv_indev_set_read_cb(keyboard, [](lv_indev_t*, lv_indev_data_t* d) { keyboard_input::read_lvgl(d); });
+    configure_keyboard_repeat(keyboard);
+    backlight::init(0);
     return keyboard != nullptr;
 }
-void shutdown() {}
+void shutdown() { backlight::shutdown(); }
 lv_display_t* get_display() { return display; }
 lv_indev_t* get_keyboard_indev() { return keyboard; }
 bool poll_event(PlatformEvent& event, uint32_t) {
@@ -52,9 +56,11 @@ bool poll_event(PlatformEvent& event, uint32_t) {
     return false;
 }
 void requeue_last_event() {
+    if (keyboard_input::release_lvgl_before(last)) lv_indev_read(keyboard);
     if (keyboard_input::forward_to_lvgl(last)) lv_indev_read(keyboard);
 }
 void pump_events() {
+    backlight::service();
     // Yield even during sidebar animations, which skip poll_event entirely.
     // Asyncify preserves the real run_app stack across this browser turn.
     emscripten_sleep(4);
@@ -64,11 +70,6 @@ void pump_events() {
 void begin_ui_animation(const char*) {}
 void finish_ui_animation() {}
 void end_ui_animation() {}
-bool copy_display_strip(uint8_t* out, uint32_t stride, uint32_t width, uint32_t height) {
-    if (!out || width > 800 || height > 480 || stride < width * 2) return false;
-    for (uint32_t row = 0; row < height; ++row) std::memcpy(out + row * stride, pixels + row * 800, width * 2);
-    return true;
-}
 KeyModifiers get_key_modifiers() { return keyboard_input::modifiers(); }
 bool is_key_pressed(KeyCode key) { return keyboard_input::pressed(key); }
 bool was_key_pressed(KeyCode key) { return last.type == PlatformEvent::Type::KeyDown && last.key == key && !last.repeat; }

@@ -1,7 +1,7 @@
 #pragma once
 #include "justtype/platforms/platform.h"
 namespace spelling {
-enum class TooltipAction { Pass, Consume, Open, Accept, Dismiss };
+enum class TooltipAction { Pass, Consume, Open, Accept, Dismiss, Up, Down };
 class TooltipInput {
     uint8_t swallowed_ = 0;
 
@@ -20,9 +20,10 @@ class TooltipInput {
         if (active) {
             if (event.type == T::KeyDown) {
                 swallowed_ = event.hid_usage;
-                return event.key == platform::KeyCode::Enter
-                           ? TooltipAction::Accept
-                           : TooltipAction::Dismiss;
+                if (event.key == platform::KeyCode::Enter) return TooltipAction::Accept;
+                if (event.key == platform::KeyCode::Up) return TooltipAction::Up;
+                if (event.key == platform::KeyCode::Down) return TooltipAction::Down;
+                return TooltipAction::Dismiss;
             }
             return event.type == T::TextInput ? TooltipAction::Dismiss
                                               : TooltipAction::Consume;

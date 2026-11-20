@@ -80,6 +80,12 @@ const assert = require("node:assert/strict");
     await menu();
     assert.equal(await view(), 1);
     assert.notDeepEqual(await page.locator("#screen").screenshot(), before);
+    // Opening selects the current document, rather than New File.
+    await key("Enter", 550);
+    assert.equal(await view(), 0);
+    assert.equal(await text(), documentText);
+    await menu();
+    for (let i=0; i<10; ++i) await key("ArrowUp");
     await key("Enter", 350);
     assert.equal(await view(), 3);
     await type("browser draft");
@@ -93,13 +99,35 @@ const assert = require("node:assert/strict");
     await type("t");
     await save();
     await menu();
-    await key("ArrowRight");
-    await key("Enter", 250);
+    await key("Meta");
     assert.equal(await view(), 5);
     await key("ArrowRight");
     await key("ArrowDown");
     await key("ArrowRight");
+    await key("ArrowDown");
+    await key("ArrowDown");
+    const brightness = () => page.locator("#screen").evaluate(el => el.style.filter);
+    await key("ArrowLeft");
+    assert.equal(await brightness(), "brightness(0.9)");
+    // A duplicate Right usage from the prototype still means one increase.
+    await page.evaluate(() => {
+      Module._leaf_report(0,79,79,0,0,0,0);
+      Module._leaf_report(0,0,0,0,0,0,0);
+    });
+    await page.waitForTimeout(200);
+    assert.equal(await brightness(), "brightness(1)");
+    for (let i=0; i<10; ++i) await key("Alt+Minus", 60);
+    assert.equal(await brightness(), "brightness(0.1)");
+    for (let i=0; i<10; ++i) await key("Alt+Equal", 60);
+    assert.equal(await brightness(), "brightness(1)");
+    await key("Alt+Minus");
+    assert.equal(await brightness(), "brightness(0.9)");
+    await page.waitForTimeout(1000);
     await page.screenshot({ path: "build/settings.png", fullPage: true });
+    await key("Meta");
+    assert.equal(await view(), 1);
+    await key("Meta");
+    assert.equal(await view(), 5);
     await key("Escape");
     await key("Escape", 550);
     await save();
@@ -114,6 +142,7 @@ const assert = require("node:assert/strict");
       await state(),
       /^\/spiffs\/user_files\/browser draft\.txt\na second document$/,
     );
+    assert.equal(await page.locator("#screen").evaluate(el => el.style.filter), "brightness(0.9)");
     assert.equal(
       await page.evaluate(() =>
         Module.FS.readFile("/spiffs/user_files/.editor_state", {
@@ -189,13 +218,14 @@ const assert = require("node:assert/strict");
     await page.screenshot({ path: "build/desktop.png", fullPage: true }); // Exercise rename, folder creation and trash through firmware dialogs.
     await page.locator("#screen").focus();
     await menu();
-    await key("ArrowDown");
     await key("ArrowRight", 350);
     for (let i = 0; i < 13; i++) await key("Backspace", 20);
     await type("renamed draft");
     await key("Enter", 600);
     assert.match(await state(), /^\/spiffs\/user_files\/renamed draft\.txt\n/);
-    await key("ArrowDown");
+    // Reopen to select the renamed current document in its new sorted position.
+    await key("Escape", 550);
+    await menu();
     await key("Delete");
     await key("ArrowLeft");
     await key("Enter", 350);
@@ -214,6 +244,7 @@ const assert = require("node:assert/strict");
     );
     await key("Escape", 550);
     await menu();
+    for (let i=0; i<10; ++i) await key("ArrowUp");
     await key("ArrowLeft");
     await key("Enter", 350);
     await type("ideas");

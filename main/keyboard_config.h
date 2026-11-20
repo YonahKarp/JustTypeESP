@@ -3,7 +3,7 @@
 #include <string>
 namespace keyboard_config {
 constexpr int layout_count = 5;
-constexpr int action_count = 10;
+constexpr int action_count = 12;
 void load();
 bool save();
 int layout();

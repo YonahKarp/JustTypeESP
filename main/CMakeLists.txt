@@ -29,6 +29,7 @@ idf_component_register(
         "justtype/src/editor.cpp"
         "justtype/src/editor_word_count.cpp"
         "justtype/src/qr_export.cpp"
+        "justtype/src/quick_open.cpp"
         "justtype/src/textarea_utils.cpp"
         "justtype/src/sidebar.cpp"
         "justtype/src/sidebar_snapshot.cpp"

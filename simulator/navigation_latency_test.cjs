@@ -1,0 +1,42 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+(async () => {
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const page = await browser.newPage();
+    await page.goto('http://127.0.0.1:4177');
+    await page.waitForFunction(() => typeof Module !== 'undefined' && Module._leaf_cursor && !document.getElementById('menu').disabled);
+    await page.locator('#screen').focus();
+    await page.keyboard.type('abcdefghijklmnopqrst', {delay:20});
+    await page.waitForTimeout(200);
+    const cursor = () => page.evaluate(() => Module._leaf_cursor());
+    const text = () => page.evaluate(() => Module.ccall('leaf_state','string',[],[]).split('\n').slice(1).join('\n'));
+    assert.equal(await cursor(), 20);
+    await page.keyboard.down('ArrowLeft');
+    await page.waitForTimeout(100);
+    assert.equal(await cursor(), 19);
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(100);
+    assert.equal(await cursor(), 20, 'overlapping right press must move immediately');
+    await page.keyboard.up('ArrowLeft');
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('ArrowLeft');
+    await page.waitForTimeout(700);
+    await page.keyboard.up('ArrowLeft');
+    await page.waitForTimeout(100);
+    const stopped = await cursor();
+    assert(stopped <= 14, `held arrow should repeat promptly: ${stopped}`);
+    await page.waitForTimeout(250);
+    assert.equal(await cursor(), stopped, 'release must stop repeat');
+    await page.keyboard.press('End');
+    await page.keyboard.down('Backspace');
+    await page.waitForTimeout(700);
+    await page.keyboard.up('Backspace');
+    await page.waitForTimeout(100);
+    const length = (await text()).length;
+    assert(length <= 14, `held backspace should repeat promptly: ${length}`);
+    await page.waitForTimeout(250);
+    assert.equal((await text()).length, length, 'release must stop deleting');
+    console.log('PASS: overlapping arrow presses, responsive hold repeats, and release stopping arrows and backspace.');
+  } finally { await browser.close(); }
+})().catch(e => { console.error(e); process.exitCode=1; });

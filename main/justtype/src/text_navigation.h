@@ -17,7 +17,7 @@ struct KeyRepeatState {
     uint32_t press_time = 0;
     uint32_t last_action_time = 0;
     
-    static constexpr uint32_t INITIAL_DELAY = 800;
+    static constexpr uint32_t INITIAL_DELAY = 300;
     static constexpr uint32_t REPEAT_DELAY = 80;
     
     bool should_act(bool is_pressed, uint32_t now);

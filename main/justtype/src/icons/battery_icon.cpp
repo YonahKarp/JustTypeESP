@@ -29,7 +29,8 @@ void create_battery_icon(BatteryIconState& state, lv_obj_t* parent, int percent,
     lv_obj_remove_style_all(state.fill);
     int fill_width = (BATT_WIDTH - 4) * percent / 100;
     lv_obj_set_size(state.fill, fill_width, BATT_HEIGHT - 4);
-    lv_obj_set_pos(state.fill, 2, 2);
+    // Child positions start inside the body's one-pixel border.
+    lv_obj_set_pos(state.fill, 1, 1);
     lv_obj_set_style_bg_color(state.fill, fill_color, 0);
     lv_obj_set_style_bg_opa(state.fill, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(state.fill, 0, 0);

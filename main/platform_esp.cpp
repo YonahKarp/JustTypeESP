@@ -1,5 +1,6 @@
 #include "justtype/platforms/platform.h"
 #include "keyboard_input.h"
+#include "keyboard_timing.h"
 #include "backlight.h"
 
 #include <algorithm>
@@ -364,6 +365,7 @@ bool init(int32_t width, int32_t height) {
     if (g_keyboard) {
         lv_indev_set_type(g_keyboard, LV_INDEV_TYPE_KEYPAD);
         lv_indev_set_read_cb(g_keyboard, keyboard_read_cb);
+        configure_keyboard_repeat(g_keyboard);
     }
 
     const esp_timer_create_args_t tick_args = {
@@ -412,6 +414,7 @@ bool poll_event(PlatformEvent &event, uint32_t timeout_ms) {
 void requeue_last_event() {
     // Deliver each edge before a following release can replace it. Waiting for
     // the periodic input timer adds latency and can miss short key presses.
+    if (g_keyboard && keyboard_input::release_lvgl_before(g_last_event)) lv_indev_read(g_keyboard);
     if (keyboard_input::forward_to_lvgl(g_last_event) && g_keyboard) {
         lv_indev_read(g_keyboard);
     }

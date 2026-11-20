@@ -16,6 +16,8 @@ enum class KeyCode {
     T,
     V,
     X,
+    N,
+    O,
     Equals,
     Minus,
     Backspace,

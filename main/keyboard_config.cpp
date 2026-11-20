@@ -8,17 +8,18 @@ namespace {
 int selected = 0;
 uint32_t accent = 0;
 const uint8_t defaults[] = {0x09, 0x17, 0x13, 0x04, 0x06,
-                            0x1b, 0x19, 0x2e, 0x2d, 0x05};
+                            0x1b, 0x19, 0x2e, 0x2d, 0x05, 0x11, 0x12};
 uint8_t bindings[action_count] = {0x09, 0x17, 0x13, 0x04, 0x06,
-                                  0x1b, 0x19, 0x2e, 0x2d, 0x05};
+                                  0x1b, 0x19, 0x2e, 0x2d, 0x05, 0x11, 0x12};
 const platform::KeyCode actions[] = {
     platform::KeyCode::F, platform::KeyCode::T,      platform::KeyCode::P,
     platform::KeyCode::A, platform::KeyCode::C,      platform::KeyCode::X,
     platform::KeyCode::V, platform::KeyCode::Equals, platform::KeyCode::Minus,
-    platform::KeyCode::B};
+    platform::KeyCode::B, platform::KeyCode::N, platform::KeyCode::O};
 const char *names[] = {
     "Search", "Toggle theme", "QR export",   "Select all",   "Copy",
-    "Cut",    "Paste",        "Larger font", "Smaller font", "Back up now"};
+    "Cut",    "Paste",        "Larger font", "Smaller font", "Back up now",
+    "New file", "Open file"};
 std::string utf8(uint32_t c) {
     std::string s;
     if (c < 128)
@@ -114,7 +115,7 @@ platform::KeyCode shortcut(uint8_t u) {
 }
 bool save() {
     std::ofstream f("/spiffs/user_files/.keyboard.tmp");
-    f << 2 << ' ' << selected;
+    f << 3 << ' ' << selected;
     for (auto u : bindings)
         f << ' ' << int(u);
     f << '\n';
@@ -126,17 +127,21 @@ void load() {
     std::ifstream f("/spiffs/user_files/.keyboard");
     int version, n;
     int values[action_count];
-    if (!(f >> version >> n) || (version != 1 && version != 2) || n < 0 ||
+    if (!(f >> version >> n) || (version < 1 || version > 3) || n < 0 ||
         n >= layout_count)
         return;
-    const int stored_count = version == 1 ? 9 : action_count;
+    const int stored_count = version == 1 ? 9 : version == 2 ? 10 : action_count;
     for (int i = 0; i < stored_count; ++i)
         if (!(f >> values[i]))
             return;
-    if (version == 1) {
-        values[9] = 0x05;
-        while (std::find(values, values + 9, values[9]) != values + 9)
-            ++values[9];
+    // Preserve older custom bindings and assign each new action a free key.
+    for (int i = stored_count; i < action_count; ++i) {
+        values[i] = defaults[i];
+        if (std::find(values, values + i, values[i]) != values + i) {
+            values[i] = 4;
+            while (std::find(values, values + i, values[i]) != values + i)
+                ++values[i];
+        }
     }
     reset();
     for (int i = 0; i < action_count; ++i) {

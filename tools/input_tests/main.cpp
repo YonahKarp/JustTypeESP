@@ -22,6 +22,17 @@ std::vector<Event> drain() {
 int main() {
     assert(keyboard_input::init());
     keyboard_config::reset();
+    // Both new file actions use physical Ctrl shortcuts, without text events.
+    for (auto usage : {uint8_t(0x11), uint8_t(0x12)}) {
+        report(1, usage);
+        report(0, 0); // Releasing Ctrl first must still release the action key.
+        const auto action = drain();
+        assert(action.size() == 2);
+        assert(action[0].type == Type::KeyDown && action[0].modifiers.ctrl);
+        assert(action[0].key == (usage == 0x11 ? Key::N : Key::O));
+        assert(action[1].type == Type::KeyUp && action[1].key == action[0].key);
+        assert(!keyboard_input::pressed(action[0].key));
+    }
     // During a slide reports are queued without polling. State must not advance.
     report(2, 4); // Shift+A
     report(2, 0); // release A, Shift still held
@@ -62,6 +73,31 @@ int main() {
     assert(keyboard_input::forward_to_lvgl(event));
     keyboard_input::read_lvgl(&data);
     assert(data.state == LV_INDEV_STATE_RELEASED);
+
+    // Overlapping navigation keys must each produce a press, and releasing the
+    // older key must not cancel the newer held key.
+    report(0, 0x50);
+    assert(keyboard_input::poll(event, 0));
+    assert(!keyboard_input::release_lvgl_before(event));
+    assert(keyboard_input::forward_to_lvgl(event));
+    keyboard_input::read_lvgl(&data);
+    const uint8_t overlap[8] = {0, 0, 0x50, 0x4f, 0, 0, 0, 0};
+    keyboard_input::submit_report(overlap, sizeof(overlap));
+    assert(keyboard_input::poll(event, 0) && event.hid_usage == 0x4f);
+    assert(keyboard_input::release_lvgl_before(event));
+    keyboard_input::read_lvgl(&data);
+    assert(data.key == LV_KEY_LEFT && data.state == LV_INDEV_STATE_RELEASED);
+    assert(keyboard_input::forward_to_lvgl(event));
+    keyboard_input::read_lvgl(&data);
+    assert(data.key == LV_KEY_RIGHT && data.state == LV_INDEV_STATE_PRESSED);
+    report(0, 0x4f); // release left while right stays held
+    assert(keyboard_input::poll(event, 0) && event.hid_usage == 0x50);
+    assert(!keyboard_input::forward_to_lvgl(event));
+    keyboard_input::read_lvgl(&data);
+    assert(data.key == LV_KEY_RIGHT && data.state == LV_INDEV_STATE_PRESSED);
+    report(0, 0);
+    assert(keyboard_input::poll(event, 0));
+    assert(keyboard_input::forward_to_lvgl(event));
 
     // The attached keyboard repeats Right Arrow in two slots. Emit only one
     // down and one up, including if the duplicate slots move while held.

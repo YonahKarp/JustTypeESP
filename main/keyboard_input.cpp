@@ -30,6 +30,8 @@ bool caps_lock = false;
 platform::KeyCode active_keys[256] = {};
 uint32_t lv_key = 0;
 lv_indev_state_t lv_state = LV_INDEV_STATE_RELEASED;
+uint32_t lv_read_key = 0;
+lv_indev_state_t lv_read_state = LV_INDEV_STATE_RELEASED;
 
 platform::KeyCode key_from_usage(uint8_t usage) {
     using K = platform::KeyCode;
@@ -39,6 +41,8 @@ platform::KeyCode key_from_usage(uint8_t usage) {
         case 0x05: return K::B;
         case 0x06: return K::C;
         case 0x09: return K::F;
+        case 0x11: return K::N;
+        case 0x12: return K::O;
         case 0x13: return K::P;
         case 0x17: return K::T;
         case 0x19: return K::V;
@@ -265,11 +269,22 @@ bool pressed(platform::KeyCode key) {
     return index < std::size(held) && held[index];
 }
 
+bool release_lvgl_before(const platform::PlatformEvent& event) {
+    const uint32_t key = lv_key_from_usage(event.hid_usage);
+    if (event.type != platform::PlatformEvent::Type::KeyDown || !key ||
+        lv_read_state != LV_INDEV_STATE_PRESSED) return false;
+    lv_key = lv_read_key;
+    lv_state = LV_INDEV_STATE_RELEASED;
+    return true;
+}
+
 bool forward_to_lvgl(const platform::PlatformEvent& event) {
     if (event.type != platform::PlatformEvent::Type::KeyDown &&
         event.type != platform::PlatformEvent::Type::KeyUp) return false;
     const uint32_t key = lv_key_from_usage(event.hid_usage);
     if (!key) return false;
+    // A release for a key superseded by another press must not release it.
+    if (event.type == platform::PlatformEvent::Type::KeyUp && key != lv_key) return false;
     lv_key = key;
     lv_state = event.type == platform::PlatformEvent::Type::KeyDown
         ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
@@ -279,6 +294,8 @@ bool forward_to_lvgl(const platform::PlatformEvent& event) {
 void read_lvgl(lv_indev_data_t* data) {
     data->key = lv_key;
     data->state = lv_state;
+    lv_read_key = lv_key;
+    lv_read_state = lv_state;
 }
 
 }  // namespace keyboard_input

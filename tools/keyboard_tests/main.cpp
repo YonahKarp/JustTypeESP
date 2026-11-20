@@ -1,5 +1,6 @@
 #include "justtype/src/search.h"
 #include "justtype/src/spelling/spellcheck_core.h"
+#include "justtype/src/spelling/suggestions.h"
 #include "justtype/src/spelling/tooltip_input.h"
 #include "justtype/src/text_navigation.h"
 #include "justtype/src/utf8_positions.h"
@@ -15,6 +16,21 @@ void test_navigation();
 void test_viewport();
 void test_backup_policy();
 int main() {
+    {
+        spelling::Suggestions suggestions;
+        suggestions.start("helo");
+        unsigned slices = 0;
+        while (suggestions.pending() && ++slices < 100000) suggestions.step(128);
+        assert(!suggestions.pending());
+        assert(suggestions.results()[0] == "hello" || suggestions.results()[1] == "hello");
+        suggestions.start("qzxqzxqzx");
+        while (suggestions.pending()) suggestions.step(128);
+        assert(suggestions.results()[0].empty());
+        suggestions.start("helo");
+        suggestions.step(1);
+        suggestions.start("");
+        assert(!suggestions.pending());
+    }
     test_navigation();
     test_viewport();
     test_backup_policy();
@@ -77,6 +93,10 @@ int main() {
 
     assert(spelling::word_at("abc123 ", 7).empty());
     assert(spelling::in_dictionary("hello"));
+    assert(spelling::in_dictionary(spelling::normalize("I")));
+    assert(spelling::in_dictionary(spelling::normalize("we’ll")));
+    assert(spelling::in_dictionary(spelling::normalize("backyard")));
+    assert(spelling::in_dictionary(spelling::normalize("i")));
     assert(spelling::in_dictionary("running"));
     assert(spelling::in_dictionary("don't"));
     assert(!spelling::in_dictionary("helo"));

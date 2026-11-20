@@ -6,6 +6,7 @@ struct EditorState;
 namespace spellcheck {
 void init();
 bool tooltip_active();
+bool suggestions_pending();
 bool handle_event(const platform::PlatformEvent &, EditorState &,
                   bool can_open);
 void update(EditorState &, bool visible);

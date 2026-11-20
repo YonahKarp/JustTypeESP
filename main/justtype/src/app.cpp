@@ -15,6 +15,7 @@
 #include "theme.h"
 #include "file_manager.h"
 #include "qr_export.h"
+#include "quick_open.h"
 #include "textarea_utils.h"
 #include "text_navigation.h"
 #include "platform.h"
@@ -512,9 +513,9 @@ static void handle_sidebar_keyboard() {
     if (!g_sidebar.visible) return;
 
     bool ctrl = platform::get_key_modifiers().ctrl;
-    static uint32_t last_nav_time = 0;
     uint32_t now = lv_tick_get();
-    bool nav_debounce = (now - last_nav_time) > 120;
+    // HID emits one edge per press, so a time gate loses fast distinct taps.
+    bool nav_debounce = true;
 
     // Close keys bypass navigation debounce and dismiss only the current surface.
     if (is_close_shortcut_pressed()) {
@@ -537,13 +538,13 @@ static void handle_sidebar_keyboard() {
     // Skip processing for a short time after file dialog closes
     // to prevent Enter key from triggering sidebar actions
     if (g_sidebar.file_dialog_close_time > 0 &&
-        (now - g_sidebar.file_dialog_close_time) < 200) {
+        (now - g_sidebar.file_dialog_close_time) < 200 &&
+        platform::was_key_pressed(platform::KeyCode::Enter)) {
         return;
     }
 
     // Handle Ctrl+F to toggle search
     if (ctrl && nav_debounce && platform::was_key_pressed(platform::KeyCode::F)) {
-        last_nav_time = now;
         toggle_sidebar_search(g_sidebar, g_editor);
         return;
     }
@@ -552,24 +553,20 @@ static void handle_sidebar_keyboard() {
     if (g_sidebar.confirm_restore) {
         if (nav_debounce) {
             if (platform::was_key_pressed(platform::KeyCode::Left)) {
-                last_nav_time = now;
                 g_sidebar.dialog_selection = 0;
                 update_restore_dialog_selection(g_sidebar, g_editor);
             }
 
             if (platform::was_key_pressed(platform::KeyCode::Right)) {
-                last_nav_time = now;
                 g_sidebar.dialog_selection = 1;
                 update_restore_dialog_selection(g_sidebar, g_editor);
             }
 
             if (platform::was_key_pressed(platform::KeyCode::Enter)) {
-                last_nav_time = now;
                 confirm_restore_action(g_sidebar, g_editor);
             }
 
             if (is_close_shortcut_pressed()) {
-                last_nav_time = now;
                 hide_restore_dialog(g_sidebar);
             }
         }
@@ -580,24 +577,20 @@ static void handle_sidebar_keyboard() {
     if (g_sidebar.confirm_delete) {
         if (nav_debounce) {
             if (platform::was_key_pressed(platform::KeyCode::Left)) {
-                last_nav_time = now;
                 g_sidebar.dialog_selection = 0;
                 update_delete_dialog_selection(g_sidebar, g_editor);
             }
 
             if (platform::was_key_pressed(platform::KeyCode::Right)) {
-                last_nav_time = now;
                 g_sidebar.dialog_selection = 1;
                 update_delete_dialog_selection(g_sidebar, g_editor);
             }
 
             if (platform::was_key_pressed(platform::KeyCode::Enter)) {
-                last_nav_time = now;
                 confirm_delete_action(g_sidebar, g_editor);
             }
 
             if (is_close_shortcut_pressed()) {
-                last_nav_time = now;
                 hide_delete_dialog(g_sidebar);
             }
         }
@@ -622,7 +615,6 @@ static void handle_sidebar_keyboard() {
 
     if (nav_debounce) {
         if (platform::was_key_pressed(platform::KeyCode::Up)) {
-            last_nav_time = now;
             if (g_sidebar.renaming) {
                 if (g_sidebar.rename_textarea) {
                     lv_group_remove_obj(g_sidebar.rename_textarea);
@@ -633,7 +625,7 @@ static void handle_sidebar_keyboard() {
                 // Already at top, do nothing
             } else if (g_sidebar.selected_index == 0) {
                 if (!g_sidebar.searching) {
-                    g_sidebar.new_file_selected = true;
+                g_sidebar.new_file_selected = true;
                 }
                 refresh_file_list_ui(g_sidebar, g_editor);
             } else if (g_sidebar.selected_index > 0) {
@@ -643,7 +635,6 @@ static void handle_sidebar_keyboard() {
         }
 
         if (platform::was_key_pressed(platform::KeyCode::Down)) {
-            last_nav_time = now;
             if (g_sidebar.renaming) {
                 if (g_sidebar.rename_textarea) {
                     lv_group_remove_obj(g_sidebar.rename_textarea);
@@ -671,12 +662,10 @@ static void handle_sidebar_keyboard() {
         // Left arrow: navigate from new_file to new_folder
         if (platform::was_key_pressed(platform::KeyCode::Left) && !g_sidebar.searching && !g_sidebar.renaming) {
             if (g_sidebar.settings_selected) {
-                last_nav_time = now;
                 g_sidebar.settings_selected = false;
                 g_sidebar.new_file_selected = true;
                 refresh_file_list_ui(g_sidebar, g_editor);
             } else if (g_sidebar.new_file_selected) {
-                last_nav_time = now;
                 g_sidebar.new_file_selected = false;
                 g_sidebar.new_folder_selected = true;
                 refresh_file_list_ui(g_sidebar, g_editor);
@@ -686,18 +675,15 @@ static void handle_sidebar_keyboard() {
         // Right arrow: navigate from new_folder to new_file, or start rename on file/folder
         if (platform::was_key_pressed(platform::KeyCode::Right) && !g_sidebar.searching) {
             if (g_sidebar.new_folder_selected) {
-                last_nav_time = now;
                 g_sidebar.new_folder_selected = false;
                 g_sidebar.new_file_selected = true;
                 refresh_file_list_ui(g_sidebar, g_editor);
             } else if (g_sidebar.new_file_selected) {
-                last_nav_time = now;
                 g_sidebar.new_file_selected = false;
                 g_sidebar.settings_selected = true;
                 refresh_file_list_ui(g_sidebar, g_editor);
             } else if (!g_sidebar.settings_selected && !g_sidebar.new_file_selected && !g_sidebar.renaming &&
                        g_sidebar.selected_index >= 0 && g_sidebar.selected_index < display_count) {
-                last_nav_time = now;
                 const SidebarItem& item = g_sidebar.folder_data.display_items[g_sidebar.selected_index];
                 if (item.is_folder()) {
                     show_file_dialog(g_sidebar, g_editor, FILE_DIALOG_MODE_RENAME_FOLDER);
@@ -718,7 +704,6 @@ static void handle_sidebar_keyboard() {
         // Tab key: rename selected file/folder
         if (platform::was_key_pressed(platform::KeyCode::Tab) && !g_sidebar.searching && !g_sidebar.renaming &&
             !g_sidebar.new_file_selected && !g_sidebar.new_folder_selected) {
-            last_nav_time = now;
             if (g_sidebar.selected_index >= 0 && g_sidebar.selected_index < display_count) {
                 const SidebarItem& item = g_sidebar.folder_data.display_items[g_sidebar.selected_index];
                 if (item.is_folder()) {
@@ -740,7 +725,6 @@ static void handle_sidebar_keyboard() {
         }
 
         if (platform::was_key_pressed(platform::KeyCode::Enter)) {
-            last_nav_time = now;
             if (g_sidebar.settings_selected) {
                 settings_open(g_sidebar, g_editor);
             } else if (g_sidebar.renaming) {
@@ -790,7 +774,6 @@ static void handle_sidebar_keyboard() {
 
         // Delete key shows delete dialog (for files and folders)
         if (platform::was_key_pressed(platform::KeyCode::Delete) && !g_sidebar.searching && !g_sidebar.renaming) {
-            last_nav_time = now;
             if (!g_sidebar.new_file_selected && !g_sidebar.new_folder_selected &&
                 g_sidebar.selected_index >= 0 && g_sidebar.selected_index < display_count) {
                 show_delete_dialog(g_sidebar, g_editor, g_sidebar.selected_index);
@@ -798,7 +781,6 @@ static void handle_sidebar_keyboard() {
         }
 
         if (is_close_shortcut_pressed()) {
-            last_nav_time = now;
             if (g_sidebar.renaming) {
                 if (g_sidebar.rename_textarea) {
                     lv_group_remove_obj(g_sidebar.rename_textarea);
@@ -859,6 +841,31 @@ static bool handle_shortcuts() {
 
     platform::KeyModifiers modifiers = platform::get_key_modifiers();
     bool ctrl = modifiers.ctrl;
+
+    if (ctrl && !g_sidebar.file_dialog_active && !g_sidebar.confirm_delete &&
+        !g_sidebar.confirm_restore && !g_sidebar.renaming &&
+        (platform::was_key_pressed(platform::KeyCode::N) ||
+         platform::was_key_pressed(platform::KeyCode::O))) {
+        const bool create = platform::was_key_pressed(platform::KeyCode::N);
+        if (g_search.active) {
+            close_search(g_search);
+            lv_obj_add_flag(g_editor.search_container, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(g_editor.word_count_label, LV_OBJ_FLAG_HIDDEN);
+            clear_selection_local(g_editor.textarea);
+        }
+        if (g_sidebar.visible) {
+            hide_sidebar(g_sidebar, g_editor);
+            finish_sidebar_slide(g_sidebar);
+        }
+        g_deferred_focus = nullptr;
+        keyboard_config::cancel_composition();
+        if (create) {
+            std::string error;
+            if (!create_blank_document(g_editor, error)) quick_open_show(g_editor, g_input_group, error);
+            else focus_editor_textarea();
+        } else quick_open_show(g_editor, g_input_group);
+        return true;
+    }
 
     if (platform::was_key_pressed(platform::KeyCode::Meta)) {
         settings_open(g_sidebar, g_editor);
@@ -1054,6 +1061,7 @@ bool init_app(App& app) {
 
 void shutdown_app(App& app) {
     finish_sidebar_slide(g_sidebar);
+    quick_open_close();
     backup::shutdown();
     (void)app;
 
@@ -1129,6 +1137,7 @@ void run_app(App& app) {
         if (next_timer_wait < wait_time) wait_time = next_timer_wait;
         // Service bounded backup IO slices promptly while retaining input priority.
         if (backup::pending_storage()) wait_time = std::min<uint32_t>(wait_time, 1);
+        if (spellcheck::suggestions_pending()) wait_time = std::min<uint32_t>(wait_time, 1);
 
         // Drain queued input before rendering; each key can generate several events.
         for (unsigned batch = 0; batch < 64 && !g_sidebar.animating; ++batch) {
@@ -1149,6 +1158,7 @@ void run_app(App& app) {
             const bool settings_was_active = settings_active();
             const bool qr_was_active = qr_export_is_active();
             const bool tooltip_was_active = spellcheck::tooltip_active();
+            const bool picker_was_active = quick_open_active();
             bool tooltip_consumed = false;
             if (had_event) {
                 if (wait_event.type == platform::PlatformEvent::Type::KeyDown &&
@@ -1159,9 +1169,15 @@ void run_app(App& app) {
                 }
                 backup::note_input();
                 bool consumed = spellcheck::handle_event(wait_event, g_editor,
-                    !settings_was_active && !qr_was_active && !g_sidebar.visible && !g_search.active &&
+                    !settings_was_active && !qr_was_active && !picker_was_active && !g_sidebar.visible && !g_search.active &&
                     lv_group_get_focused(g_input_group) == g_editor.textarea);
                 tooltip_consumed = consumed;
+                if (!consumed && picker_was_active) {
+                    if (wait_event.type == platform::PlatformEvent::Type::KeyDown &&
+                        wait_event.key == platform::KeyCode::Grave) g_suppress_close_shortcut_text = true;
+                    quick_open_handle_event(wait_event);
+                    consumed = true;
+                }
                 if (settings_was_active) {
                     settings_handle_event(wait_event, g_sidebar, g_editor);
                     if (!settings_active() && wait_event.type == platform::PlatformEvent::Type::KeyDown &&
@@ -1307,7 +1323,7 @@ void run_app(App& app) {
                 }
             }
 
-            if (!qr_export_is_active() && !settings_active() && !settings_was_active && !qr_was_active && !tooltip_was_active && !tooltip_consumed && !spellcheck::tooltip_active()) {
+            if (!quick_open_active() && !picker_was_active && !qr_export_is_active() && !settings_active() && !settings_was_active && !qr_was_active && !tooltip_was_active && !tooltip_consumed && !spellcheck::tooltip_active()) {
                 if (!handle_shortcuts()) {
                     handle_search_navigation();
                     handle_text_selection();
@@ -1350,7 +1366,7 @@ void run_app(App& app) {
             keyboard_input::discard_pending();
             lv_obj_delete(overlay);
         }
-        spellcheck::update(g_editor, !settings_active() && !g_sidebar.visible && !qr_export_is_active() && !g_search.active);
+        spellcheck::update(g_editor, !quick_open_active() && !settings_active() && !g_sidebar.visible && !qr_export_is_active() && !g_search.active);
         process_pending_word_count(g_editor, 120);
 
         process_pending_saves(g_editor, DEBOUNCE_DELAY, g_sidebar.folder_data.collapsed_folders);

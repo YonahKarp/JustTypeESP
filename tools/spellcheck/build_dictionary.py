@@ -9,7 +9,8 @@ ROOT=Path(__file__).resolve().parents[2]
 SOURCE=Path(__file__).resolve().parent
 
 def generate():
-    words=set()
+    # SCOWL's word lists omit the standalone pronoun, although lookup folds case.
+    words={'i', "we'll", 'backyard'}
     for file in sorted(list(SOURCE.glob('*-words.*'))+list(SOURCE.glob('*-contractions.*'))):
         for word in file.read_text(encoding='latin1').splitlines():
             # Exclude proper names/acronyms. Keep I and contractions, fold case at lookup.
@@ -40,7 +41,7 @@ def generate():
     out=ROOT/'main/justtype/src/spelling'
     out.mkdir(exist_ok=True)
     (out/'english.bin').write_bytes(data)
-    (out/'english_lexicon.h').write_text('#pragma once\n#include <cstdint>\nnamespace english_lexicon {\nconstexpr uint32_t root = '+str(offsets[root])+';\nconstexpr uint32_t word_count = '+str(len(words))+';\nconstexpr uint8_t arcs[] = {\n'+''.join(','.join(hex(v) for v in data[4:][i:i+12])+',\n' for i in range(0,len(data)-4,12))+'};\n}\n')
+    (out/'english_lexicon.h').write_text('#pragma once\n#include <cstdint>\nnamespace english_lexicon {\ninline constexpr uint32_t root = '+str(offsets[root])+';\ninline constexpr uint32_t word_count = '+str(len(words))+';\ninline constexpr uint8_t arcs[] = {\n'+''.join(','.join(hex(v) for v in data[4:][i:i+12])+',\n' for i in range(0,len(data)-4,12))+'};\n}\n')
     (out/'Copyright').write_bytes((SOURCE/'Copyright').read_bytes())
     (SOURCE/'expected_words.txt').write_text('\n'.join(sorted(words))+'\n')
     print(f'{len(words):,} words; {len(data):,} bytes; {len(states):,} minimized states')

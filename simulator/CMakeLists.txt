@@ -24,7 +24,7 @@ target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE LV_LVGL_H_INCLUDE_
 # Deliberately compile the firmware sources in place, without copied UI code.
 file(GLOB UI_SOURCES CONFIGURE_DEPENDS "${UI}/src/*.cpp" "${UI}/src/icons/*.cpp" "${UI}/src/spelling/*.cpp" "${UI}/src/fonts/*.c")
 list(REMOVE_ITEM UI_SOURCES "${UI}/src/main.cpp")
-add_executable(leaf ${UI_SOURCES} "${LEAF_ROOT}/main/keyboard_config.cpp" "${LEAF_ROOT}/main/keyboard_input.cpp" platform_browser.cpp hardware_services.cpp)
+add_executable(leaf ${UI_SOURCES} "${LEAF_ROOT}/main/keyboard_config.cpp" "${LEAF_ROOT}/main/keyboard_input.cpp" platform_browser.cpp hardware_services.cpp backlight_browser.cpp)
 target_include_directories(leaf PRIVATE compat "${LEAF_ROOT}/main" "${UI}/src" "${UI}/platforms")
 target_link_libraries(leaf PRIVATE lvgl)
 target_compile_options(leaf PRIVATE -Wno-deprecated-enum-enum-conversion)

@@ -207,6 +207,20 @@ a native USB connection. The downloader works with the current hardware.
 
 ## Keyboard preferences
 
+Ctrl+N creates and opens a blank document in the main documents folder. Names
+start at `New File.txt`, then `New File 1.txt`, `New File 2.txt`, and so on,
+without replacing an existing file. Pending edits are saved before switching.
+
+Ctrl+O opens the file picker. Files appear newest modified first; typing filters
+their file and folder names, including nested folders. Up/Down selects a result,
+Enter opens it, and Escape or backtick closes the panel. Hidden files and recently
+deleted files are excluded. Both shortcuts can be remapped in Keyboard settings;
+older custom shortcuts are preserved when loading existing preferences.
+
+Run `node simulator/quick_open_test.cjs` against the simulator on port 4175
+(`LEAF_URL` overrides it) to check creation, filtering, save protection and
+shortcut-preference migration.
+
 Settings has Appearance and Keyboard tabs. Tab switches tabs; Up/Down selects a
 row. Left/Right changes the layout or shortcut action. Layouts: US QWERTY,
 Dvorak, Dvorak right hand, Spanish (Spain), and Russian. Shortcuts use physical
@@ -246,11 +260,11 @@ Layout reference: https://gitlab.freedesktop.org/xkeyboard-config/xkeyboard-conf
 ## Minimal English spellcheck
 
 English spellcheck runs automatically. Put the cursor on or immediately after
-an unrecognized word and press Ctrl+Space to open an Add to dictionary tooltip.
-Enter saves it to the personal dictionary (up to 128 words) and removes its
-visible underlines. Any other key dismisses the tooltip; the dismissing key is
-consumed and does not edit the document or run another shortcut. Key releases
-from the opening chord do not dismiss it. Save failures stay visible for retry.
+an unrecognized word and press Ctrl+Space to see up to two suggested corrections,
+Add to dictionary, and Cancel. Use Up/Down and Enter to choose; Escape closes.
+Suggestions are calculated incrementally for the word at the cursor and reused
+as the cursor moves within it. The personal dictionary holds up to 128 words;
+save failures stay visible for retry.
 Settings contains Appearance, Keyboard and Backup tabs. After a 600 ms pause in editing or scrolling, visible words are checked
 incrementally and unrecognized words receive dotted underlines. Moving the
 cursor within the same viewport reuses cached results. Adding a word accepts it and refreshes the visible underlines. Search and selection keep their

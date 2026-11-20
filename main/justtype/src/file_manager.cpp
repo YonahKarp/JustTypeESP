@@ -37,6 +37,8 @@ void ensure_shortcuts_file(const std::string& user_files_dir) {
     if (file) {
         file << "JustType Keyboard Shortcuts\n";
         file << "===========================\n\n";
+        file << "Ctrl + N          Create New File (numbered if needed)\n";
+        file << "Ctrl + O          Open files: recent first; search file/folder names\n";
         file << "Ctrl + F          Search in document\n";
         file << "Ctrl + T          Toggle dark/light theme\n";
         file << "Ctrl + P          Export as QR codes\n";

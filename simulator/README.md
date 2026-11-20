@@ -11,7 +11,7 @@ python simulator/build.py
 python -m http.server 4173 --directory simulator/build/site
 ```
 
-Visit **http://localhost:4173**. Use HTTP, not `file://`. The page focuses the display when ready. Click it to resume typing. The **Menu** button sends Leaf's real Meta menu action; it avoids OS-reserved Windows/Command key combinations. Use arrows and Enter to navigate, Esc to close. The **Type** button opens a mobile text entry field and the system keyboard. The display scales proportionally but always renders at 800x480.
+Visit **http://localhost:4173**. Use HTTP, not `file://`. The page focuses the display when ready. Click it to resume typing. The **Menu** button sends Leaf's real Escape menu action; it avoids OS-reserved Windows/Command key combinations. Use arrows and Enter to navigate, Esc to close. The **Type** button opens a mobile text entry field and the system keyboard. The display scales proportionally but always renders at 800x480.
 
 If tools are not on PATH:
 
@@ -26,7 +26,7 @@ emcmake cmake -S simulator -B simulator/build -G Ninja
 cmake --build simulator/build --parallel 8
 ```
 
-The build uses the production `managed_components/lvgl__lvgl` source when present. Otherwise it fetches the pinned LVGL v9.2.2 tag, requiring Git and internet during configuration. `--lvgl PATH` selects another local copy. Use the same LVGL version as the firmware: sidebar snapshots access private LVGL structures. If the firmware upgrades LVGL, update the fallback tag and revalidate the simulator together. Application sources, fonts and `lv_conf.h` are read directly from `main/`; rebuilding picks up firmware changes. Only public backup interfaces are included; device credentials and hardware network code are excluded.
+The build uses the production `managed_components/lvgl__lvgl` source when present. Otherwise it fetches the pinned LVGL v9.2.2 tag, requiring Git and internet during configuration. `--lvgl PATH` selects another local copy. Use the same LVGL version as the firmware: sidebar snapshots access private LVGL structures. If the firmware upgrades LVGL, update the fallback tag and revalidate the simulator together. Application sources, fonts and `lv_conf.h` are read directly from `main/`; rebuilding picks up firmware changes. Brightness uses a browser adapter that dims the canvas and persists its 10–100% setting with documents; no hardware PWM is simulated. Command toggles Settings; Escape and backtick toggle the menu. Only public backup interfaces are included; device credentials and hardware network code are excluded.
 
 ## Live deployment and JustTypeWeb integration
 
@@ -39,6 +39,11 @@ this simulator, run from the web repository:
 ```sh
 npm run sim:sync -- /path/to/JustTypeESP/simulator/build/site
 ```
+
+The current sync script replaces only `leaf.js` and `leaf.wasm` and regenerates
+manifest hashes. It preserves the web repository's `index.html`, `browser.js`,
+and `style.css`. Port any browser adapter changes (such as a changed Menu key)
+to its `browser.js` explicitly, keeping the page's custom controls and styling.
 
 Review and commit the copied assets together, then push the web repository to
 `main` for its Vercel production integration. Its `SIMULATOR.md` documents the
@@ -65,7 +70,7 @@ Avoid editing the same demo origin in multiple tabs: whole filesystem snapshots 
 | Editor | LVGL textarea, UTF-8 positions/navigation, selection, search, document size limits and debounced saves | Same editor, search, navigation and textarea utilities |
 | Documents | C++ streams/POSIX paths under `/spiffs/user_files`, temporary saves/recovery, folders, rename, trash, state | Same paths and file manager on Emscripten's virtual filesystem, mounted to IndexedDB via IDBFS before application startup |
 | UI | Editor, sidebar, file/folder dialogs, settings, themes, icons, Montserrat and international fallback fonts | All compiled directly from firmware sources; actual LVGL software rasterizer, not browser text |
-| Animations | PSRAM-backed clipped sidebar snapshots using LVGL private APIs; copy from last presented frame | Same snapshot implementation, with browser-only ESP allocation/memory helpers |
+| Animations | PSRAM-backed clipped menu snapshot using LVGL private APIs | Same snapshot implementation, with browser-only ESP allocation/memory helpers |
 | Spellcheck / QR | Fixed viewport checker/dictionary and LVGL QR encoder/UI | Same sources and compiled dictionary |
 | Word count | `std::thread` worker plus an existing synchronous fallback | Compile-time guard skips starting the thread; same debounce and counting fallback |
 | Timing / loop | ESP timer/LVGL ticks and FreeRTOS queue waits | Monotonic browser clock; nonblocking bounded report queue; `pump_events()` calls `emscripten_sleep(4)` with Asyncify so the actual application loop yields, including during animations |

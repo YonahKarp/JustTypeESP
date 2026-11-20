@@ -236,9 +236,8 @@ function pulse(usage) {
 }
 document.getElementById("menu").onclick = () => {
   releaseAll();
-  // Leaf opens its sidebar on Meta; this button avoids OS-reserved Meta keys.
-  Module._leaf_report(8, 0, 0, 0, 0, 0, 0);
-  Module._leaf_report(0, 0, 0, 0, 0, 0, 0);
+  // Match Leaf: Escape toggles the menu; Command toggles Settings.
+  pulse(41);
   focusScreen();
 };
 document.getElementById("keyboard").onclick = () => {

@@ -6,12 +6,14 @@
 #include "international_font.h"
 #include "spelling/spellcheck_core.h"
 #include "spelling/tooltip_input.h"
+#include "spelling/suggestions.h"
 #include "spelling/viewport_checker.h"
 #include "src/misc/lv_text_private.h"
 #include "theme.h"
 #include "utf8_positions.h"
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <fstream>
 #include <new>
 #include <set>
@@ -38,6 +40,27 @@ lv_obj_t *tooltip = nullptr;
 lv_obj_t *tooltip_hint = nullptr;
 std::string tooltip_word;
 spelling::TooltipInput tooltip_input;
+spelling::Suggestions suggestions;
+std::string suggestion_word;
+size_t tooltip_start = 0, tooltip_end = 0;
+unsigned tooltip_selection = 0;
+void update_tooltip_options() {
+    if (!tooltip_hint) return;
+    std::string options;
+    const auto& results = suggestions.results();
+    unsigned count = 0;
+    if (suggestions.pending()) options = "Finding suggestions...\n";
+    else for (const auto& result : results) {
+        if (result.empty()) continue;
+        options += (tooltip_selection == count ? "> " : "  ") + result + "\n";
+        ++count;
+    }
+    options += (tooltip_selection == count ? "> " : "  ");
+    options += "Add to dictionary\n";
+    options += (tooltip_selection == count + 1 ? "> " : "  ");
+    options += "Cancel\nUp/Down: select   Enter: choose   Esc: close";
+    lv_label_set_text(tooltip_hint, options.c_str());
+}
 void close_tooltip() {
     if (tooltip)
         lv_obj_delete(tooltip);
@@ -80,8 +103,12 @@ void open_tooltip(EditorState &editor) {
         if(!found)return;
     }
     tooltip_word = candidate;
+    tooltip_start = range.start;
+    tooltip_end = range.end;
+    if (suggestion_word != candidate) { suggestion_word = candidate; suggestions.start(candidate); }
+    tooltip_selection = 0;
     tooltip = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(tooltip, 360, 112);
+    lv_obj_set_size(tooltip, 360, 132);
     lv_obj_clear_flag(tooltip, LV_OBJ_FLAG_SCROLLABLE);
     const auto &theme = get_theme(editor.dark_theme);
     lv_obj_set_style_bg_color(tooltip, theme.sidebar_bg, 0);
@@ -90,28 +117,28 @@ void open_tooltip(EditorState &editor) {
     lv_obj_set_style_radius(tooltip, 7, 0);
     lv_obj_set_style_pad_all(tooltip, 10, 0);
     lv_obj_t *title = lv_label_create(tooltip);
-    lv_label_set_text_fmt(title, "Add to dictionary: %s?", candidate.c_str());
+    lv_label_set_text_fmt(title, "Spelling: %s", candidate.c_str());
     lv_obj_set_width(title, 336);
     lv_label_set_long_mode(title, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_font(title, get_ui_font(16), 0);
     lv_obj_set_style_text_color(title, theme.sidebar_btn_text, 0);
     tooltip_hint = lv_label_create(tooltip);
-    lv_label_set_text(tooltip_hint, "Enter: add\nAny other key: dismiss");
     lv_obj_set_style_text_font(tooltip_hint, get_ui_font(14), 0);
     lv_obj_set_style_text_color(tooltip_hint, theme.text_dim, 0);
-    lv_obj_align(tooltip_hint, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_align_to(tooltip_hint, title, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 6);
+    update_tooltip_options();
     const int32_t screen_width =
         lv_display_get_horizontal_resolution(lv_display_get_default());
     const int32_t screen_height =
         lv_display_get_vertical_resolution(lv_display_get_default());
     x = std::clamp<int32_t>(x, 4, std::max<int32_t>(4, screen_width - 364));
-    int32_t popup_y = y - 120;
+    int32_t popup_y = y - 140;
     if (popup_y < 4)
         popup_y = y +
                   lv_obj_get_style_text_font(label, LV_PART_MAIN)->line_height +
                   6;
     popup_y = std::clamp<int32_t>(popup_y, 4,
-                                  std::max<int32_t>(4, screen_height - 116));
+                                  std::max<int32_t>(4, screen_height - 136));
     lv_obj_set_pos(tooltip, x, popup_y);
 }
 struct CacheEntry {
@@ -251,6 +278,7 @@ bool add_current() {
     return false;
 }
 bool tooltip_active() { return tooltip != nullptr; }
+bool suggestions_pending() { return suggestions.pending(); }
 bool handle_event(const platform::PlatformEvent &event, EditorState &editor,
                   bool can_open) {
     using A = spelling::TooltipAction;
@@ -261,6 +289,32 @@ bool handle_event(const platform::PlatformEvent &event, EditorState &editor,
         open_tooltip(editor);
         return true;
     case A::Accept:
+        if (!suggestions.pending()) {
+            const auto& results = suggestions.results();
+            unsigned count = 0;
+            for (const auto& result : results) {
+                if (result.empty()) continue;
+                if (tooltip_selection == count) {
+                    const char* text = lv_textarea_get_text(editor.textarea);
+                    std::string original(text + tooltip_start, tooltip_end - tooltip_start);
+                    std::string replacement = result;
+                    if (!original.empty() && original[0] >= 'A' && original[0] <= 'Z') replacement[0] -= 'a' - 'A';
+                    if (std::strlen(text) - original.size() + replacement.size() >= TEXT_BUFFER_SIZE) {
+                        lv_label_set_text(tooltip_hint, "Document is too large for this replacement.\nEsc: close");
+                        return true;
+                    }
+                    const uint32_t first = utf8_length(std::string(text, tooltip_start).c_str());
+                    const uint32_t length = utf8_length(original.c_str());
+                    close_tooltip();
+                    lv_textarea_set_cursor_pos(editor.textarea, first + length);
+                    for (uint32_t i = 0; i < length; ++i) lv_textarea_delete_char(editor.textarea);
+                    lv_textarea_add_text(editor.textarea, replacement.c_str());
+                    return true;
+                }
+                ++count;
+            }
+            if (tooltip_selection > count) { close_tooltip(); return true; }
+        } else if (tooltip_selection > 0) { close_tooltip(); return true; }
         word = tooltip_word;
         if (!add_current()) {
             lv_label_set_text(
@@ -275,6 +329,14 @@ bool handle_event(const platform::PlatformEvent &event, EditorState &editor,
     case A::Dismiss:
         close_tooltip();
         return true;
+    case A::Up:
+    case A::Down: {
+        unsigned count = suggestions.pending() ? 0 : unsigned(!suggestions.results()[0].empty()) + unsigned(!suggestions.results()[1].empty());
+        if (event.key == platform::KeyCode::Up && tooltip_selection) --tooltip_selection;
+        if (event.key == platform::KeyCode::Down && tooltip_selection < count + 1) ++tooltip_selection;
+        update_tooltip_options();
+        return true;
+    }
     case A::Consume:
         return true;
     }
@@ -342,6 +404,8 @@ void update(EditorState &editor, bool visible) {
     }
     if (!visible || !on) {
         close_tooltip();
+        suggestion_word.clear();
+        suggestions.start({});
         if (show_annotations) {
             show_annotations = false;
             lv_obj_invalidate(text_label);
@@ -428,5 +492,19 @@ void update(EditorState &editor, bool visible) {
         }
     }
     word = front().word_at_cursor(lv_textarea_get_cursor_pos(textarea));
+    if (!tooltip) {
+        const std::string candidate = !word.empty() && !personal.count(word) && !spelling::in_dictionary(word) ? word : std::string{};
+        if (candidate != suggestion_word) {
+            suggestion_word = candidate;
+            suggestions.start(candidate);
+        }
+    }
+    if (suggestions.pending()) {
+        suggestions.step(128);
+        if (!suggestions.pending() && tooltip) {
+            tooltip_selection = 0;
+            update_tooltip_options();
+        }
+    }
 }
 } // namespace spellcheck
