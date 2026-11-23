@@ -63,9 +63,9 @@ firmware in your browser at [justtypeleaf.com/sim](https://justtypeleaf.com/sim)
   two suggested corrections, **Add to dictionary**, and Cancel. The personal
   dictionary holds up to 128 words (saved in `.spelling`). Non-English
   spellchecking is not included; CJK input is deferred.
-- **Appearance:** five themes (Light, Dark, Ocean, Forest, Sunset) and ten
-  font sizes (18–40 pt, default 24 pt), in Settings → Appearance. Font sizes
-  use Montserrat plus Noto Sans fallbacks for Latin-1/Cyrillic.
+- **Appearance:** multiple themes and font sizes (18–40 pt, default 24 pt), 
+  in Settings → Appearance. Font sizes use Montserrat plus Noto Sans fallbacks
+  for Latin-1/Cyrillic.
 - **Keyboard layouts & remapping:** US QWERTY, Dvorak, Dvorak right hand,
   Spanish (Spain), and Russian. Shortcuts use physical US key positions
   independently of the text layout. Twelve Ctrl shortcuts can be rebound in
@@ -73,10 +73,6 @@ firmware in your browser at [justtypeleaf.com/sim](https://justtypeleaf.com/sim)
   custom shortcuts are preserved when loading existing preferences.
   Preferences are stored in `.keyboard`. Caps Lock and Spanish accent
   composition are supported; Right Alt supplies Spanish AltGr symbols.
-- **QR export (Ctrl+P):** shows the current document as a sequence of QR
-  codes (`JT2|<index>/<total>|<filename>|<chunk>`), auto-cycling, for
-  scanning with a phone. (Removed from the justtypeleaf.com marketing pages;
-  still present in this firmware.)
 - **Google Drive backup:** one-way backup of saved `.txt` documents to a
   dedicated `Leaf Backup - XXXXXX` folder in Google Drive, preserving
   subfolders. Drive content never replaces a local document. Automatic
@@ -85,9 +81,6 @@ firmware in your browser at [justtypeleaf.com/sim](https://justtypeleaf.com/sim)
   per-file dirty records. **Ctrl+B** runs Back up now; **Verify backup
   copies** does a full check against Drive. Setup — Google OAuth client,
   Wi-Fi, and phone linking — is in [BACKUP_SETUP.md](BACKUP_SETUP.md).
-  ⚠️ On the current prototype, Wi-Fi credentials and Google refresh tokens
-  persist in **ordinary (unencrypted) NVS** and survive restarts; there is
-  no flash encryption or encrypted NVS enabled yet.
 - **USB document download:** connect the CH340 USB serial port and run
   [`Download Documents.cmd`](Download%20Documents.cmd) (or
   `python tools/download_documents.py --port COM6 --output C:/Backups`).
