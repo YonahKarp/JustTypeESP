@@ -33,7 +33,7 @@ firmware in your browser at [justtypeleaf.com/sim](https://justtypeleaf.com/sim)
   Bluetooth Classic-only keyboards are not supported. The production keyboard
   is planned as a 4×12 matrix on an MCP23017 I2C expander, and the BLE
   transport is intended to be disabled in the final hardware build.
-- **Storage:** documents live in a 4 MB FAT partition (`documents`, at
+- **Storage:** documents live in FAT partition (`documents`, at
   0x500000); a legacy SPIFFS partition (0x180000) is kept for migration —
   on first boot the firmware copies legacy SPIFFS documents into FAT without
   deleting the originals, and only formats the FAT partition if every byte is
