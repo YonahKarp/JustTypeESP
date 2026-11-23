@@ -2,7 +2,9 @@
   "name": "leaf-simulator-tests",
   "private": true,
   "scripts": {
-    "test": "node test.cjs"
+    "test": "node test.cjs",
+    "test:enter": "node enter_test.cjs",
+    "test:settings": "node settings_test.cjs"
   },
   "devDependencies": {
     "playwright": "1.65.1"

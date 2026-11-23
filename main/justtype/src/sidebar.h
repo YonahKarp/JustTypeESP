@@ -14,6 +14,7 @@ struct EditorState;
 
 struct SidebarState {
     lv_obj_t* sidebar_obj = nullptr;
+    lv_obj_t* title_label = nullptr;
     lv_obj_t* file_list = nullptr;
     lv_obj_t* new_file_btn = nullptr;
     lv_obj_t* settings_btn = nullptr;

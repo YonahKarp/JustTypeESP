@@ -49,8 +49,8 @@ bool adjust(int delta) {
 bool handle_event(const platform::PlatformEvent& event) {
     if (!event.modifiers.alt || event.modifiers.ctrl || event.modifiers.meta) return false;
     if (event.type == platform::PlatformEvent::Type::KeyDown) {
-        if (event.key == platform::KeyCode::Minus) { adjust(-10); return true; }
-        if (event.key == platform::KeyCode::Equals) { adjust(10); return true; }
+        if (event.hid_usage == 0x2d || (!event.hid_usage && event.key == platform::KeyCode::Minus)) { adjust(-10); return true; }
+        if (event.hid_usage == 0x2e || (!event.hid_usage && event.key == platform::KeyCode::Equals)) { adjust(10); return true; }
     }
     return event.type == platform::PlatformEvent::Type::TextInput &&
         (event.hid_usage == 0x2d || event.hid_usage == 0x2e);

@@ -47,6 +47,9 @@ const assert = require("node:assert/strict");
       );
     }
     await page.locator("#screen").focus();
+    await key("Enter");
+    assert.equal(await text(), "\n");
+    await key("Backspace");
     await type("hello leaf");
     assert.equal(await text(), "hello leaf");
     await key("Home");
@@ -81,7 +84,10 @@ const assert = require("node:assert/strict");
     assert.equal(await view(), 1);
     assert.notDeepEqual(await page.locator("#screen").screenshot(), before);
     // Opening selects the current document, rather than New File.
-    await key("Enter", 550);
+    if (await page.locator("#enter").count()) {
+      await page.locator("#enter").click();
+      await page.waitForTimeout(550);
+    } else await key("Enter", 550);
     assert.equal(await view(), 0);
     assert.equal(await text(), documentText);
     await menu();
@@ -162,8 +168,9 @@ const assert = require("node:assert/strict");
     await page.locator("#screen").focus();
     await key("End");
     await type(" saved");
-    await page.locator("#restart").click();
-    await page.waitForTimeout(1300);
+    await save();
+    await page.reload();
+    await started();
     assert.equal(await text(), "a second document saved");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator("#keyboard").click();
@@ -265,7 +272,7 @@ const assert = require("node:assert/strict");
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: real HID typing, uppercase, deletion, cursor/word navigation, selection, clipboard, search, menu rendering, document creation, two-document persistence, appearance persistence, restart, mobile UTF-8/IME and layout, rename, trash and folder persistence.",
+      "PASS: real HID typing, uppercase, deletion, cursor/word navigation, selection, clipboard, search, menu rendering, document creation, two-document persistence, appearance persistence, reload, mobile UTF-8/IME and layout, rename, trash and folder persistence.",
     );
     await context.close();
     // A storage-denied visitor can still type, and Restart must retain the session.
@@ -295,15 +302,14 @@ const assert = require("node:assert/strict");
       ),
       /session only$/,
     );
-    await deniedPage.locator("#restart").click();
+    await deniedPage.locator("#save").click();
     await deniedPage.waitForFunction(() =>
-      document
-        .getElementById("status")
-        .textContent.includes("Restart cancelled"),
+      document.getElementById("status").textContent.includes("Could not persist"),
     );
+    assert.match(await deniedPage.evaluate(() => Module.ccall("leaf_state", "string", [], [])), /session only$/);
     await denied.close();
     console.log(
-      "PASS: blocked-storage fallback and failed-save restart protection.",
+      "PASS: blocked-storage fallback and failed-save session preservation.",
     );
   } finally {
     await browser.close();

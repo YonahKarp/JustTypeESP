@@ -2,22 +2,38 @@
 #include "justtype/src/file_manager.h"
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 #include <fstream>
 namespace keyboard_config {
 namespace {
 int selected = 0;
 uint32_t accent = 0;
-const uint8_t defaults[] = {0x09, 0x17, 0x13, 0x04, 0x06,
-                            0x1b, 0x19, 0x2e, 0x2d, 0x05, 0x11, 0x12};
-uint8_t bindings[action_count] = {0x09, 0x17, 0x13, 0x04, 0x06,
-                                  0x1b, 0x19, 0x2e, 0x2d, 0x05, 0x11, 0x12};
+const uint8_t defaults[] = {0x09, 0x17, 0x04, 0x06, 0x1b, 0x19,
+                            0x2e, 0x2d, 0x05, 0x11, 0x12};
+uint16_t bindings[action_count] = {0x109,0x117,0x104,0x106,0x11b,0x119,0x12e,0x12d,0x105,0x111,0x112};
+uint16_t encode(uint8_t usage, platform::KeyModifiers mods) {
+    return usage | (mods.ctrl ? 0x100 : 0) | (mods.alt ? 0x200 : 0) | (mods.shift ? 0x400 : 0);
+}
+bool valid(uint8_t usage, platform::KeyModifiers mods) {
+    if ((!mods.ctrl && !mods.alt) || mods.meta) return false;
+    if (usage < 4 || usage > 0x73 || usage == 0x29 || usage == 0x35 || usage == 0x39) return false;
+    if (mods.alt && !mods.ctrl && (usage == 0x2d || usage == 0x2e)) return false;
+    if (mods.ctrl && !mods.alt && (usage == 0x2c || usage == 0x2a)) return false;
+    // Single-modifier arrow keys already navigate documents and selections.
+    if (usage >= 0x4f && usage <= 0x52 && mods.ctrl != mods.alt) return false;
+    return true;
+}
+platform::KeyModifiers decode_modifiers(uint16_t binding) {
+    platform::KeyModifiers mods{};
+    mods.ctrl = binding & 0x100; mods.alt = binding & 0x200; mods.shift = binding & 0x400;
+    return mods;
+}
 const platform::KeyCode actions[] = {
-    platform::KeyCode::F, platform::KeyCode::T,      platform::KeyCode::P,
-    platform::KeyCode::A, platform::KeyCode::C,      platform::KeyCode::X,
+    platform::KeyCode::F, platform::KeyCode::T,      platform::KeyCode::A, platform::KeyCode::C,      platform::KeyCode::X,
     platform::KeyCode::V, platform::KeyCode::Equals, platform::KeyCode::Minus,
     platform::KeyCode::B, platform::KeyCode::N, platform::KeyCode::O};
 const char *names[] = {
-    "Search", "Toggle theme", "QR export",   "Select all",   "Copy",
+    "Search", "Cycle theme", "Select all",   "Copy",
     "Cut",    "Paste",        "Larger font", "Smaller font", "Back up now",
     "New file", "Open file"};
 std::string utf8(uint32_t c) {
@@ -87,35 +103,51 @@ const char *layout_name(int n) {
 }
 const char *action_name(int n) { return names[n]; }
 std::string binding_name(int n) {
-    uint8_t u = bindings[n];
-    return "Ctrl + " + (u >= 4 && u <= 29 ? std::string(1, char('A' + u - 4))
-                        : u == 0x2d       ? std::string("-")
-                                          : std::string("="));
+    const auto binding = bindings[n]; const uint8_t u = binding & 0xff;
+    const auto mods = decode_modifiers(binding); std::string name;
+    if (mods.ctrl) name += "Ctrl + ";
+    if (mods.alt) name += "Opt + ";
+    if (mods.shift) name += "Shift + ";
+    if (u >= 4 && u <= 29) name += char('A' + u - 4);
+    else if (u >= 0x1e && u <= 0x26) name += char('1' + u - 0x1e);
+    else if (u == 0x27) name += '0';
+    else if (u == 0x28) name += "Enter";
+    else if (u == 0x2a) name += "Backspace";
+    else if (u == 0x2b) name += "Tab";
+    else if (u >= 0x2c && u <= 0x38) {
+        static const char* punctuation[] = {"Space", "-", "=", "[", "]", "\\", "#", ";", "'", "`", ",", ".", "/"};
+        name += punctuation[u - 0x2c];
+    } else if (u >= 0x3a && u <= 0x45) name += "F" + std::to_string(u - 0x39);
+    else if (u >= 0x68 && u <= 0x73) name += "F" + std::to_string(u - 0x68 + 13);
+    else if (u >= 0x4f && u <= 0x52) {
+        static const char* arrows[] = {"Right", "Left", "Down", "Up"}; name += arrows[u - 0x4f];
+    } else {
+        switch (u) { case 0x49: name += "Insert"; break; case 0x4a: name += "Home"; break;
+        case 0x4b: name += "Page Up"; break; case 0x4c: name += "Delete"; break;
+        case 0x4d: name += "End"; break; case 0x4e: name += "Page Down"; break;
+        default: { char label[12]; std::snprintf(label, sizeof(label), "Key 0x%02X", u); name += label; } }
+    }
+    return name;
 }
-bool bind(int a, uint8_t u) {
-    if (a < 0 || a >= action_count ||
-        !((u >= 4 && u <= 29) || u == 0x2d || u == 0x2e))
-        return false;
-    for (int i = 0; i < action_count; ++i)
-        if (i != a && bindings[i] == u)
-            return false;
-    bindings[a] = u;
-    return true;
+bool bind(int a, uint8_t u, platform::KeyModifiers mods) {
+    if (a < 0 || a >= action_count || !valid(u, mods)) return false;
+    const uint16_t value = encode(u, mods);
+    for (int i = 0; i < action_count; ++i) if (i != a && bindings[i] == value) return false;
+    bindings[a] = value; return true;
 }
 void reset() {
-    std::memcpy(bindings, defaults, sizeof(bindings));
-    selected = 0;
-    accent = 0;
+    for (int i = 0; i < action_count; ++i) bindings[i] = 0x100 | defaults[i];
+    selected = 0; accent = 0;
 }
-platform::KeyCode shortcut(uint8_t u) {
-    for (int i = 0; i < action_count; ++i)
-        if (bindings[i] == u)
-            return actions[i];
+platform::KeyCode shortcut(uint8_t u, platform::KeyModifiers mods) {
+    if (!valid(u, mods)) return platform::KeyCode::Unknown;
+    const uint16_t value = encode(u, mods);
+    for (int i = 0; i < action_count; ++i) if (bindings[i] == value) return actions[i];
     return platform::KeyCode::Unknown;
 }
 bool save() {
     std::ofstream f("/spiffs/user_files/.keyboard.tmp");
-    f << 3 << ' ' << selected;
+    f << 5 << ' ' << selected;
     for (auto u : bindings)
         f << ' ' << int(u);
     f << '\n';
@@ -124,41 +156,30 @@ bool save() {
                                    "/spiffs/user_files/.keyboard");
 }
 void load() {
-    std::ifstream f("/spiffs/user_files/.keyboard");
-    int version, n;
-    int values[action_count];
-    if (!(f >> version >> n) || (version < 1 || version > 3) || n < 0 ||
-        n >= layout_count)
-        return;
-    const int stored_count = version == 1 ? 9 : version == 2 ? 10 : action_count;
-    for (int i = 0; i < stored_count; ++i)
-        if (!(f >> values[i]))
-            return;
-    // Preserve older custom bindings and assign each new action a free key.
-    for (int i = stored_count; i < action_count; ++i) {
-        values[i] = defaults[i];
+    std::ifstream f("/spiffs/user_files/.keyboard"); int version, n; int values[action_count]{};
+    if (!(f >> version >> n) || (version < 1 || version > 5) || n < 0 || n >= layout_count) return;
+    // Versions 1-4 included QR export at index 2. Discard only that action;
+    // all other saved bindings, including custom modifiers, keep their action.
+    const int stored_count = version == 1 ? 9 : version == 2 ? 10 : version <= 4 ? 12 : action_count;
+    int count = 0;
+    for (int i = 0; i < stored_count; ++i) {
+        int value;
+        if (!(f >> value)) return;
+        if (version <= 4 && i == 2) continue;
+        if (version < 4) value |= 0x100;
+        if (value < 0 || value > 0x7ff || !valid(value & 0xff, decode_modifiers(value))) return;
+        for (int j = 0; j < count; ++j) if (values[j] == value) return;
+        values[count++] = value;
+    }
+    for (int i = count; i < action_count; ++i) {
+        values[i] = 0x100 | defaults[i];
         if (std::find(values, values + i, values[i]) != values + i) {
-            values[i] = 4;
-            while (std::find(values, values + i, values[i]) != values + i)
-                ++values[i];
+            values[i] = 0x104;
+            while (std::find(values, values + i, values[i]) != values + i) ++values[i];
         }
     }
-    reset();
-    for (int i = 0; i < action_count; ++i) {
-        if (!((values[i] >= 4 && values[i] <= 29) || values[i] == 0x2d ||
-              values[i] == 0x2e)) {
-            reset();
-            return;
-        }
-        for (int j = 0; j < i; ++j)
-            if (values[j] == values[i]) {
-                reset();
-                return;
-            }
-    }
-    for (int i = 0; i < action_count; ++i)
-        bindings[i] = values[i];
-    selected = n;
+    for (int i = 0; i < action_count; ++i) bindings[i] = values[i];
+    selected = n; accent = 0;
 }
 bool cancel_composition() {
     bool pending = accent != 0;

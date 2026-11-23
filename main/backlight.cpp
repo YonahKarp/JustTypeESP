@@ -108,8 +108,8 @@ bool adjust(int delta) {
 bool handle_event(const platform::PlatformEvent& event) {
     if (!event.modifiers.alt || event.modifiers.ctrl || event.modifiers.meta) return false;
     if (event.type == platform::PlatformEvent::Type::KeyDown) {
-        if (event.key == platform::KeyCode::Minus) { adjust(-step); return true; }
-        if (event.key == platform::KeyCode::Equals) { adjust(step); return true; }
+        if (event.hid_usage == 0x2d || (!event.hid_usage && event.key == platform::KeyCode::Minus)) { adjust(-step); return true; }
+        if (event.hid_usage == 0x2e || (!event.hid_usage && event.key == platform::KeyCode::Equals)) { adjust(step); return true; }
     }
     // Right Option/AltGr can also generate text. Consume only the text paired
     // with these physical keys, including inside the Wi-Fi password form.

@@ -131,10 +131,39 @@ int main() {
     assert(text(4, true, false) == u8"Ф");
     assert(text(0x35, false, false) == u8"ё");
     assert(!bind(0, 0x17));
-    assert(!bind(0, 0x28));
+    assert(!bind(0, 0x29)); // Escape remains the fixed close key.
     assert(bind(0, 0x07));
     assert(shortcut(0x07) == platform::KeyCode::F);
     assert(shortcut(0x09) == platform::KeyCode::Unknown);
+    reset();
+    platform::KeyModifiers opt{}; opt.alt = true;
+    platform::KeyModifiers both{}; both.ctrl = both.alt = true;
+    platform::KeyModifiers shifted = opt; shifted.shift = true;
+    platform::KeyModifiers none{};
+    assert(!bind(0, 0x14, none));
+    assert(!bind(0, 0x2d, opt)); // Reserved backlight shortcut.
+    assert(bind(0, 0x14, opt));
+    assert(shortcut(0x14, opt) == platform::KeyCode::F);
+    assert(shortcut(0x14, both) == platform::KeyCode::Unknown);
+    assert(bind(1, 0x14, both)); // Same key with different modifiers is distinct.
+    assert(bind(2, 0x14, shifted));
+    assert(!bind(3, 0x14, opt)); // Exact duplicate rejected.
+    assert(binding_name(0) == "Opt + Q");
+    assert(binding_name(1) == "Ctrl + Opt + Q");
+    assert(binding_name(2) == "Opt + Shift + Q");
+    assert(bind(5, 0x28, both));
+    assert(binding_name(5) == "Ctrl + Opt + Enter");
+    assert(bind(6, 0x4f, both));
+    assert(binding_name(6) == "Ctrl + Opt + Right");
+    assert(!bind(6, 0x4f, opt)); // Existing line navigation remains reserved.
+    assert(!bind(6, 0x2a)); // Ctrl + Backspace remains reserved.
+    assert(bind(4, 0x1e, opt)); // Digits are assignable.
+    assert(binding_name(4) == "Opt + 1");
+    reset();
+    assert(action_count == 11);
+    assert(shortcut(0x13) == platform::KeyCode::Unknown); // Ctrl+P is no longer document export.
+    assert(bind(0, 0x13)); // The removed action's key can be reassigned.
+    assert(shortcut(0x13) == platform::KeyCode::F);
     reset();
     assert(shortcut(0x05)==platform::KeyCode::B);
     assert(shortcut(0x09) == platform::KeyCode::F);

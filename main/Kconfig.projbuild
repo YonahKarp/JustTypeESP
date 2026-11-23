@@ -1,5 +1,16 @@
 menu "Leaf display"
 
+    choice LEAF_DISPLAY_BOARD
+        prompt "Display board"
+        default LEAF_DISPLAY_7_INCH
+
+        config LEAF_DISPLAY_7_INCH
+            bool "ESP32-8048S070 (7 inch)"
+
+        config LEAF_DISPLAY_5_INCH
+            bool "ESP32-8048S050 (5 inch)"
+    endchoice
+
     choice LEAF_LCD_TIMING
         prompt "RGB LCD timing preset"
         default LEAF_LCD_TIMING_COMPARISON

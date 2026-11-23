@@ -264,16 +264,34 @@ bool init(int32_t width, int32_t height) {
     ESP_ERROR_CHECK(gpio_set_direction((gpio_num_t)LCD_BKLT_GPIO, GPIO_MODE_OUTPUT));
     ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)LCD_BKLT_GPIO, 0));
 
+#if CONFIG_LEAF_DISPLAY_5_INCH
+    // ESP32-8048S050 RGB565 signals, ordered blue, green, red.
+    const int rgb_pins[16] = {
+        8, 3, 46, 9, 1,
+        5, 6, 7, 15, 16, 4,
+        45, 48, 47, 21, 14
+    };
+#else
     const int rgb_pins[16] = {
         15, 7, 6, 5, 4,
         9, 46, 3, 8, 16, 1,
         14, 21, 47, 48, 45
     };
+#endif
 
     esp_lcd_rgb_timing_t timings = {};
     timings.h_res = LCD_H_RES;
     timings.v_res = LCD_V_RES;
-#if CONFIG_LEAF_LCD_TIMING_COMPARISON
+#if CONFIG_LEAF_DISPLAY_5_INCH
+    constexpr const char *timing_preset = "ESP32-8048S050";
+    timings.pclk_hz = 14000000;
+    timings.hsync_pulse_width = 4;
+    timings.hsync_back_porch = 8;
+    timings.hsync_front_porch = 8;
+    timings.vsync_pulse_width = 4;
+    timings.vsync_back_porch = 8;
+    timings.vsync_front_porch = 8;
+#elif CONFIG_LEAF_LCD_TIMING_COMPARISON
     constexpr const char *timing_preset = "comparison";
     // Controlled comparison with LovyanGFX's ESP32-8048S070 board preset:
     // https://github.com/lovyan03/LovyanGFX/blob/master/src/lgfx_user/LGFX_Sunton_ESP32-8048S070.h
@@ -316,8 +334,13 @@ bool init(int32_t width, int32_t height) {
     panel_config.bounce_buffer_size_px = LCD_H_RES * 12;
     panel_config.dma_burst_size = 64;
     panel_config.hsync_gpio_num = (gpio_num_t)39;
+#if CONFIG_LEAF_DISPLAY_5_INCH
+    panel_config.vsync_gpio_num = (gpio_num_t)41;
+    panel_config.de_gpio_num = (gpio_num_t)40;
+#else
     panel_config.vsync_gpio_num = (gpio_num_t)40;
     panel_config.de_gpio_num = (gpio_num_t)41;
+#endif
     panel_config.pclk_gpio_num = (gpio_num_t)42;
     panel_config.disp_gpio_num = GPIO_NUM_NC;
     for (int i = 0; i < 16; i++) {

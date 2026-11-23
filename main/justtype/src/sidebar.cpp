@@ -94,10 +94,10 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
     lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     
-    lv_obj_t* title = lv_label_create(header);
-    lv_label_set_text(title, "Files");
-    lv_obj_set_style_text_color(title, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(title, get_ui_font(20), 0);
+    sidebar.title_label = lv_label_create(header);
+    lv_label_set_text(sidebar.title_label, "Files");
+    lv_obj_set_style_text_color(sidebar.title_label, theme.sidebar_btn_text, 0);
+    lv_obj_set_style_text_font(sidebar.title_label, get_ui_font(20), 0);
     
     lv_obj_t* btn_container = lv_obj_create(header);
     lv_obj_remove_style_all(btn_container);
@@ -362,6 +362,7 @@ void update_sidebar_theme(SidebarState& sidebar, int dark) {
     if (sidebar.sidebar_obj) {
         lv_obj_set_style_bg_color(sidebar.sidebar_obj, theme.sidebar_bg, 0);
     }
+    if (sidebar.title_label) lv_obj_set_style_text_color(sidebar.title_label, theme.sidebar_btn_text, 0);
     
     if (sidebar.settings_btn) lv_obj_set_style_bg_color(sidebar.settings_btn, theme.sidebar_new_file, 0);
     if (sidebar.settings_icon) lv_obj_set_style_text_color(sidebar.settings_icon, theme.sidebar_btn_text, 0);

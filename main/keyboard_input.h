@@ -15,6 +15,7 @@ void submit_report(const uint8_t* data, size_t length);
 void disconnected();
 bool poll(platform::PlatformEvent& event, uint32_t timeout_ms);
 bool backlog_high();
+bool current_shortcut();
 platform::KeyModifiers modifiers();
 bool pressed(platform::KeyCode key);
 // Release the previous LVGL key before forwarding an overlapping new key.

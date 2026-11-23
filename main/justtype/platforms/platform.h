@@ -58,6 +58,7 @@ struct PlatformEvent {
     KeyCode key = KeyCode::Unknown;
     KeyModifiers modifiers {};
     bool repeat = false;
+    bool shortcut = false;
     uint8_t hid_usage = 0;
     char text[32] = {0};
 };

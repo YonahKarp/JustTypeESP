@@ -14,7 +14,6 @@
 #include "search.h"
 #include "theme.h"
 #include "file_manager.h"
-#include "qr_export.h"
 #include "quick_open.h"
 #include "textarea_utils.h"
 #include "text_navigation.h"
@@ -188,7 +187,7 @@ static bool has_selection(lv_obj_t* textarea) {
 
 static void handle_clipboard() {
     platform::KeyModifiers modifiers = platform::get_key_modifiers();
-    bool ctrl = modifiers.ctrl;
+    bool ctrl = modifiers.ctrl || keyboard_input::current_shortcut();
     bool cmd = modifiers.meta;
 
     if (!ctrl && !cmd) return;
@@ -512,7 +511,7 @@ static void keyboard_event_cb(lv_event_t* e) {
 static void handle_sidebar_keyboard() {
     if (!g_sidebar.visible) return;
 
-    bool ctrl = platform::get_key_modifiers().ctrl;
+    bool ctrl = platform::get_key_modifiers().ctrl || keyboard_input::current_shortcut();
     uint32_t now = lv_tick_get();
     // HID emits one edge per press, so a time gate loses fast distinct taps.
     bool nav_debounce = true;
@@ -835,12 +834,8 @@ static void handle_search_navigation() {
 }
 
 static bool handle_shortcuts() {
-    if (qr_export_is_active()) {
-        return true;
-    }
-
     platform::KeyModifiers modifiers = platform::get_key_modifiers();
-    bool ctrl = modifiers.ctrl;
+    bool ctrl = modifiers.ctrl || keyboard_input::current_shortcut();
 
     if (ctrl && !g_sidebar.file_dialog_active && !g_sidebar.confirm_delete &&
         !g_sidebar.confirm_restore && !g_sidebar.renaming &&
@@ -888,11 +883,6 @@ static bool handle_shortcuts() {
 
     if (ctrl) {
         if (platform::was_key_pressed(platform::KeyCode::B)) backup::request_now();
-        if (platform::was_key_pressed(platform::KeyCode::P)) {
-            qr_export_open(g_editor);
-            return true;
-        }
-
         if (platform::was_key_pressed(platform::KeyCode::A) && !g_sidebar.visible) {
             lv_obj_t* focused = lv_group_get_focused(g_input_group);
             if (focused && lv_obj_check_type(focused, &lv_textarea_class)) {
@@ -924,7 +914,7 @@ static bool handle_shortcuts() {
         }
 
         if (platform::was_key_pressed(platform::KeyCode::T)) {
-            g_editor.dark_theme = (g_editor.dark_theme == 1) ? 0 : 1;
+            g_editor.dark_theme = (g_editor.dark_theme + 1) % 5;
             update_editor_theme(g_editor, g_editor.dark_theme);
             update_sidebar_theme(g_sidebar, g_editor.dark_theme);
             g_editor.state_pending_save = true;
@@ -1078,7 +1068,6 @@ void shutdown_app(App& app) {
         g_input_group = nullptr;
     }
 
-    qr_export_close();
 
     lv_deinit();
     platform::shutdown();
@@ -1144,7 +1133,7 @@ void run_app(App& app) {
             // Wait only for the first event in a batch.
             platform::PlatformEvent wait_event {};
             bool had_event = platform::poll_event(wait_event, batch == 0 ? wait_time : 0);
-            if (had_event && backlight::handle_event(wait_event)) {
+            if (had_event && !settings_capturing_binding() && backlight::handle_event(wait_event)) {
                 keyboard_config::cancel_composition();
                 backup::note_input();
                 continue;
@@ -1156,7 +1145,6 @@ void run_app(App& app) {
 
             // Process the event we received
             const bool settings_was_active = settings_active();
-            const bool qr_was_active = qr_export_is_active();
             const bool tooltip_was_active = spellcheck::tooltip_active();
             const bool picker_was_active = quick_open_active();
             bool tooltip_consumed = false;
@@ -1169,7 +1157,7 @@ void run_app(App& app) {
                 }
                 backup::note_input();
                 bool consumed = spellcheck::handle_event(wait_event, g_editor,
-                    !settings_was_active && !qr_was_active && !picker_was_active && !g_sidebar.visible && !g_search.active &&
+                    !settings_was_active && !picker_was_active && !g_sidebar.visible && !g_search.active &&
                     lv_group_get_focused(g_input_group) == g_editor.textarea);
                 tooltip_consumed = consumed;
                 if (!consumed && picker_was_active) {
@@ -1192,13 +1180,7 @@ void run_app(App& app) {
                     consumed = true;
                 }
 
-                if (!consumed && qr_export_is_active()) {
-                    if (wait_event.type == platform::PlatformEvent::Type::KeyDown &&
-                        wait_event.key == platform::KeyCode::Grave) g_suppress_close_shortcut_text = true;
-                    consumed = qr_export_handle_event(wait_event);
-                }
-
-                if (!consumed && !qr_export_is_active() && wait_event.type == platform::PlatformEvent::Type::KeyDown) {
+                if (!consumed && wait_event.type == platform::PlatformEvent::Type::KeyDown) {
                     if (is_close_shortcut_event(wait_event)) {
                         if (wait_event.key == platform::KeyCode::Grave)
                             g_suppress_close_shortcut_text = true;
@@ -1284,14 +1266,14 @@ void run_app(App& app) {
                 }
 
                 // Also consume key up events when sidebar is visible
-                if (!consumed && !qr_export_is_active() &&
+                if (!consumed &&
                     wait_event.type == platform::PlatformEvent::Type::KeyUp &&
                     g_sidebar.visible) {
                     consumed = true;
                 }
 
                 // Handle text input - intercept when sidebar is visible
-                if (!consumed && !qr_export_is_active() && wait_event.type == platform::PlatformEvent::Type::TextInput) {
+                if (!consumed && wait_event.type == platform::PlatformEvent::Type::TextInput) {
                     if (g_suppress_close_shortcut_text && wait_event.hid_usage == 0x35) {
                         g_suppress_close_shortcut_text = false;
                         consumed = true;
@@ -1311,19 +1293,22 @@ void run_app(App& app) {
                         }
                         consumed = true;
                     }
-                } else if (!consumed && !qr_export_is_active() &&
+                } else if (!consumed &&
                            wait_event.type == platform::PlatformEvent::Type::KeyUp &&
                            wait_event.key == platform::KeyCode::Grave) {
                     g_suppress_close_shortcut_text = false;
                 }
 
+                // A remapped navigation or Enter key belongs to the action,
+                // not to the LVGL widget underneath it.
+                if (wait_event.shortcut) consumed = true;
                 // Push event back if not consumed, so LVGL can process it
                 if (!consumed) {
                     platform::requeue_last_event();
                 }
             }
 
-            if (!quick_open_active() && !picker_was_active && !qr_export_is_active() && !settings_active() && !settings_was_active && !qr_was_active && !tooltip_was_active && !tooltip_consumed && !spellcheck::tooltip_active()) {
+            if (!quick_open_active() && !picker_was_active && !settings_active() && !settings_was_active && !tooltip_was_active && !tooltip_consumed && !spellcheck::tooltip_active()) {
                 if (!handle_shortcuts()) {
                     handle_search_navigation();
                     handle_text_selection();
@@ -1352,7 +1337,6 @@ void run_app(App& app) {
             backup::tick(g_editor);
             continue;
         }
-        qr_export_update_autocycle();
 
         if (serial_export::requested()) {
             lv_obj_t* overlay = lv_obj_create(app.screen);
@@ -1366,7 +1350,7 @@ void run_app(App& app) {
             keyboard_input::discard_pending();
             lv_obj_delete(overlay);
         }
-        spellcheck::update(g_editor, !quick_open_active() && !settings_active() && !g_sidebar.visible && !qr_export_is_active() && !g_search.active);
+        spellcheck::update(g_editor, !quick_open_active() && !settings_active() && !g_sidebar.visible && !g_search.active);
         process_pending_word_count(g_editor, 120);
 
         process_pending_saves(g_editor, DEBOUNCE_DELAY, g_sidebar.folder_data.collapsed_folders);

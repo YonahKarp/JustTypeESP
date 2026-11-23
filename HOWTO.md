@@ -148,7 +148,7 @@ preserve the latest held/released state. Overflow can still lose characters.
 
 Verify rapid typing, modifier shortcuts, Backspace, and disconnect while holding
 
-a key on hardware, including during autosave and QR export.
+a key on hardware, including during autosave.
 
 
 
@@ -221,12 +221,19 @@ Run `node simulator/quick_open_test.cjs` against the simulator on port 4175
 (`LEAF_URL` overrides it) to check creation, filtering, save protection and
 shortcut-preference migration.
 
-Settings has Appearance and Keyboard tabs. Tab switches tabs; Up/Down selects a
-row. Left/Right changes the layout or shortcut action. Layouts: US QWERTY,
-Dvorak, Dvorak right hand, Spanish (Spain), and Russian. Shortcuts use physical
-US key positions independently of the text layout. Enter on the binding row
-captures an unused Ctrl + letter, minus, or equals. Escape or backtick closes Settings, including during capture.
-Search, theme toggle, QR export, select-all, copy/cut/paste, and font-size
+Settings has Appearance, Keyboard and Backup tabs. Tab switches tabs; Up/Down
+selects a row. Appearance provides theme and font-size dropdowns (Enter opens,
+Up/Down chooses, Enter confirms); Left/Right also changes them directly. Ctrl+T
+cycles all five themes. Brightness uses Left/Right in 10% steps.
+
+On the Keyboard tab, Enter opens the layout dropdown; Left/Right does not change
+the layout. Layouts: US QWERTY, Dvorak, Dvorak right hand, Spanish (Spain), and
+Russian. Edit key bindings opens a table: Up/Down selects an action, Enter
+starts capture, and Escape or backtick returns to Settings. Bindings use physical
+key positions independently of layout and require Ctrl, Option/Alt, or both;
+Shift may be included. Exact duplicate and fixed navigation/backlight shortcuts
+are rejected. Existing Ctrl-only bindings migrate on save.
+Search, theme cycling, select-all, copy/cut/paste, and font-size
 shortcuts can be remapped. Navigation and the following interface keys stay fixed:
 Escape and backtick/tilde open or close the sidebar, dismissing an active dialog
 or search first. Command/Meta toggles Settings directly, including closing its

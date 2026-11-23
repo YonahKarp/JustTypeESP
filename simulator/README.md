@@ -71,7 +71,7 @@ Avoid editing the same demo origin in multiple tabs: whole filesystem snapshots 
 | Documents | C++ streams/POSIX paths under `/spiffs/user_files`, temporary saves/recovery, folders, rename, trash, state | Same paths and file manager on Emscripten's virtual filesystem, mounted to IndexedDB via IDBFS before application startup |
 | UI | Editor, sidebar, file/folder dialogs, settings, themes, icons, Montserrat and international fallback fonts | All compiled directly from firmware sources; actual LVGL software rasterizer, not browser text |
 | Animations | PSRAM-backed clipped menu snapshot using LVGL private APIs | Same snapshot implementation, with browser-only ESP allocation/memory helpers |
-| Spellcheck / QR | Fixed viewport checker/dictionary and LVGL QR encoder/UI | Same sources and compiled dictionary |
+| Spellcheck | Fixed viewport checker and dictionary | Same sources and compiled dictionary |
 | Word count | `std::thread` worker plus an existing synchronous fallback | Compile-time guard skips starting the thread; same debounce and counting fallback |
 | Timing / loop | ESP timer/LVGL ticks and FreeRTOS queue waits | Monotonic browser clock; nonblocking bounded report queue; `pump_events()` calls `emscripten_sleep(4)` with Asyncify so the actual application loop yields, including during animations |
 | Hardware services | BLE/ESP-IDF startup, LCD driver, flash mount/migration, backup worker/Wi-Fi/credentials, USB export | Excluded; browser platform initializes LVGL and service adapters explicitly report backup as unavailable |

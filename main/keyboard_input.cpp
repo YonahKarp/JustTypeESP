@@ -26,6 +26,7 @@ size_t count = 0;
 uint8_t previous[8] = {};
 bool held[static_cast<size_t>(platform::KeyCode::Meta) + 1] = {};
 platform::KeyModifiers active_modifiers = {};
+bool current_shortcut_event = false;
 bool caps_lock = false;
 platform::KeyCode active_keys[256] = {};
 uint32_t lv_key = 0;
@@ -131,7 +132,11 @@ void emit_key(uint8_t usage, bool down) {
     if (active_modifiers.ctrl || active_modifiers.meta) keyboard_config::cancel_composition();
     platform::PlatformEvent event {};
     event.type = down ? platform::PlatformEvent::Type::KeyDown : platform::PlatformEvent::Type::KeyUp;
-    event.key = active_modifiers.ctrl && ((usage >= 4 && usage <= 29) || usage == 0x2d || usage == 0x2e) ? keyboard_config::shortcut(usage) : key_from_usage(usage);
+    const auto action = keyboard_config::shortcut(usage, active_modifiers);
+    event.shortcut = down && action != platform::KeyCode::Unknown;
+    const bool printable = (usage >= 4 && usage <= 0x27) || (usage >= 0x2c && usage <= 0x38);
+    event.key = event.shortcut ? action :
+        (active_modifiers.ctrl && printable ? platform::KeyCode::Unknown : key_from_usage(usage));
     if (down) active_keys[usage] = event.key;
     else { event.key = active_keys[usage]; active_keys[usage] = platform::KeyCode::Unknown; }
     event.modifiers = active_modifiers;
@@ -142,7 +147,7 @@ void emit_key(uint8_t usage, bool down) {
     push(event);
 
     const bool altgr = (previous[0] & 0x40) != 0;
-    if (down && !active_modifiers.ctrl && (!active_modifiers.alt || altgr) && !active_modifiers.meta) {
+    if (down && !event.shortcut && !active_modifiers.ctrl && (!active_modifiers.alt || altgr) && !active_modifiers.meta) {
         const std::string value = keyboard_config::text(usage, active_modifiers.shift, altgr, caps_lock);
         if (!value.empty()) {
             platform::PlatformEvent text {};
@@ -238,6 +243,7 @@ bool backlog_high() {
 }
 
 bool poll(platform::PlatformEvent& event, uint32_t timeout_ms) {
+    current_shortcut_event = false;
     if (count == 0 && reports) {
         Report report {};
         if (xQueueReceive(reports, &report, pdMS_TO_TICKS(timeout_ms)) == pdTRUE) {
@@ -253,6 +259,7 @@ bool poll(platform::PlatformEvent& event, uint32_t timeout_ms) {
     }
     if (count == 0) return false;
     event = events[head];
+    current_shortcut_event = event.shortcut;
     head = (head + 1) % std::size(events);
     --count;
     if (event.type == platform::PlatformEvent::Type::KeyUp &&
@@ -262,6 +269,7 @@ bool poll(platform::PlatformEvent& event, uint32_t timeout_ms) {
     return true;
 }
 
+bool current_shortcut() { return current_shortcut_event; }
 platform::KeyModifiers modifiers() { return active_modifiers; }
 
 bool pressed(platform::KeyCode key) {

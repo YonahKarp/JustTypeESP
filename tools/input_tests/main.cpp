@@ -33,6 +33,15 @@ int main() {
         assert(action[1].type == Type::KeyUp && action[1].key == action[0].key);
         assert(!keyboard_input::pressed(action[0].key));
     }
+    // A mapped Option shortcut emits its logical action and no AltGr text.
+    platform::KeyModifiers opt{}; opt.alt = true;
+    assert(keyboard_config::bind(0, 0x14, opt));
+    report(0x40, 0x14); report(0, 0);
+    auto mapped = drain();
+    assert(mapped.size() == 2 && mapped[0].shortcut && mapped[0].key == Key::F);
+    assert(mapped[1].type == Type::KeyUp && mapped[1].key == Key::F);
+    keyboard_config::reset();
+
     // During a slide reports are queued without polling. State must not advance.
     report(2, 4); // Shift+A
     report(2, 0); // release A, Shift still held

@@ -331,12 +331,11 @@ void update_editor_theme(EditorState& state, int dark) {
     state.dark_theme = dark;
     const Theme& theme = get_theme(dark);
     
-    lv_obj_t* parent = lv_obj_get_parent(state.textarea);
-    if (parent) {
-        lv_obj_t* main_container = lv_obj_get_parent(parent);
-        if (main_container) {
-            lv_obj_set_style_bg_color(main_container, theme.background, 0);
-        }
+    lv_obj_t* main_container = state.textarea ? lv_obj_get_parent(state.textarea) : nullptr;
+    if (main_container) {
+        lv_obj_set_style_bg_color(main_container, theme.background, 0);
+        lv_obj_t* screen = lv_obj_get_parent(main_container);
+        if (screen) lv_obj_set_style_bg_color(screen, theme.background, 0);
     }
     
     if (state.status_bar) {

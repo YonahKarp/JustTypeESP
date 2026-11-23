@@ -40,8 +40,7 @@ void ensure_shortcuts_file(const std::string& user_files_dir) {
         file << "Ctrl + N          Create New File (numbered if needed)\n";
         file << "Ctrl + O          Open files: recent first; search file/folder names\n";
         file << "Ctrl + F          Search in document\n";
-        file << "Ctrl + T          Toggle dark/light theme\n";
-        file << "Ctrl + P          Export as QR codes\n";
+        file << "Ctrl + T          Cycle themes\n";
         file << "Ctrl + +          Increase font size\n";
         file << "Ctrl + -          Decrease font size\n";
         file << "Option/Alt + -    Lower backlight brightness\n";

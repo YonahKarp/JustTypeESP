@@ -33,6 +33,13 @@ int main() {
     for (int expected=20; expected<=100; expected+=10)
         assert(backlight::adjust(10) && backlight::percent()==expected);
 
+    // A remapped Opt shortcut may have the logical Minus action but a different physical key.
+    event.type=E::Type::KeyDown; event.key=K::Minus; event.hid_usage=0x14;
+    assert(!backlight::handle_event(event) && backlight::percent()==100);
+    event.hid_usage=0x2d;
+    assert(backlight::handle_event(event) && backlight::percent()==90);
+    assert(backlight::adjust(10));
+
     assert(backlight::adjust(-1000) && backlight::percent()==10 && fake_duty==102);
     const int updates=fake_updates;
     assert(backlight::adjust(-10) && fake_updates==updates);
@@ -65,7 +72,7 @@ int main() {
     fake_timer_error=ESP_FAIL;
     assert(!backlight::init(2) && fake_gpio_level==1 && backlight::percent()==100);
     assert(!backlight::adjust(-10));
-    event.type=E::Type::KeyDown; event.key=K::Minus;
+    event.type=E::Type::KeyDown; event.key=K::Minus; event.hid_usage=0x2d;
     assert(backlight::handle_event(event)); // consume shortcut even on hardware failure
     std::cout << "Backlight PWM, bounds, shortcuts, persistence, retries and fallback passed\n";
 }

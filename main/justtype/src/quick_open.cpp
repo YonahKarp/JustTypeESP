@@ -168,7 +168,7 @@ void quick_open_handle_event(const platform::PlatformEvent& event) {
     }
     if (event.type != T::KeyDown) return;
     if (event.key == K::Escape || event.key == K::Grave) { quick_open_close(); return; }
-    if (event.modifiers.ctrl && event.key == K::A) {
+    if (event.shortcut && event.key == K::A) {
         auto* text = lv_textarea_get_label(picker.input);
         lv_label_set_text_selection_start(text, 0);
         lv_label_set_text_selection_end(text, utf8_length(lv_textarea_get_text(picker.input)));
