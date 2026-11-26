@@ -38,19 +38,11 @@ identified as an ESP32-S3 with 16 MB flash and 8 MB octal PSRAM.
 
 The current port is configured for an 800 x 480 RGB565 display and the
 
-partition table in `partitions.csv`. The BLE test build places the factory app
-
-at 0x200000. The original SPIFFS partition remains at 0x180000 and is not
-
-overwritten by `idf.py flash`. Documents now live in a separate 4 MB FAT
-
-partition at 0x500000 so folders work. On first boot, firmware copies legacy
-
-SPIFFS documents into FAT without deleting originals. It formats the FAT
-
-partition only when every byte is erased; a mount failure on nonblank storage
-
-stops startup instead of formatting user data.
+partition table in `partitions.csv`. The application occupies up to 4 MiB at
+0x10000, and documents/content share 11.94 MiB of FAT at 0x410000. Legacy SPIFFS
+and automatic migration were removed. This is a new layout requiring deliberate
+filesystem provisioning; see CONTENT_SETUP.md. Nonblank unmountable storage is
+never automatically formatted. NVS settings remain at their original offset.
 
 
 

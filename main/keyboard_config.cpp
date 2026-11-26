@@ -1,4 +1,7 @@
 #include "keyboard_config.h"
+#ifdef LEAF_CONTENT_RUNTIME
+#include "justtype/src/content.h"
+#endif
 #include "justtype/src/file_manager.h"
 #include <algorithm>
 #include <cstring>
@@ -58,6 +61,10 @@ const uint8_t keys[] = {0x35, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25,
                         0x07, 0x09, 0x0a, 0x0b, 0x0d, 0x0e, 0x0f, 0x33, 0x34,
                         0x31, 0x1d, 0x1b, 0x06, 0x19, 0x05, 0x11, 0x10, 0x36,
                         0x37, 0x38, 0x64, 0x2c};
+#ifdef LEAF_CONTENT_RUNTIME
+constexpr const char32_t *plain[] = {U"`1234567890-=qwertyuiop[]asdfghjkl;'\\zxcvbnm,./< "};
+constexpr const char32_t *shifted[] = {U"~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:\"|ZXCVBNM<>?> "};
+#else
 constexpr const char32_t *plain[] = {
     U"`1234567890-=qwertyuiop[]asdfghjkl;'\\zxcvbnm,./< ",
     U"`1234567890[]',.pyfgcrl/=aoeuidhtns-\\;qjkxbmwvz< ",
@@ -90,16 +97,37 @@ static_assert(std::char_traits<char32_t>::length(plain[4]) == sizeof(keys),
               "plain row size");
 static_assert(std::char_traits<char32_t>::length(shifted[4]) == sizeof(keys),
               "shift row size");
+#endif
 } // namespace
-int layout() { return selected; }
+int layout() {
+#ifdef LEAF_CONTENT_RUNTIME
+    auto choices=content::layout_choices();auto id=content::state().layout;
+    for(size_t i=1;i<choices.size();++i)if(choices[i].id==id)return int(i);
+    return 0;
+#else
+    return selected;
+#endif
+}
 void set_layout(int n) {
+#ifdef LEAF_CONTENT_RUNTIME
+    auto choices=content::layout_choices();
+    if(n<0||n>=int(choices.size()))return;
+    if(n==0)content::disable(content::state().layout);else content::enable(choices[n].id);
+    content::tick(); selected=0;
+#else
     selected = (n + layout_count) % layout_count;
+#endif
     accent = 0;
 }
 const char *layout_name(int n) {
     static const char *v[] = {"US QWERTY", "Dvorak", "Dvorak right hand",
                               "Spanish (Spain)", "Russian"};
+#ifdef LEAF_CONTENT_RUNTIME
+    static std::string name;auto choices=content::layout_choices();
+    name=n>=0&&n<int(choices.size())?choices[n].name:"US QWERTY";return name.c_str();
+#else
     return v[n];
+#endif
 }
 const char *action_name(int n) { return names[n]; }
 std::string binding_name(int n) {
@@ -138,6 +166,9 @@ bool bind(int a, uint8_t u, platform::KeyModifiers mods) {
 void reset() {
     for (int i = 0; i < action_count; ++i) bindings[i] = 0x100 | defaults[i];
     selected = 0; accent = 0;
+#ifdef LEAF_CONTENT_RUNTIME
+    content::disable(content::state().layout);content::tick();
+#endif
 }
 platform::KeyCode shortcut(uint8_t u, platform::KeyModifiers mods) {
     if (!valid(u, mods)) return platform::KeyCode::Unknown;
@@ -179,7 +210,12 @@ void load() {
         }
     }
     for (int i = 0; i < action_count; ++i) bindings[i] = values[i];
-    selected = n; accent = 0;
+#ifdef LEAF_CONTENT_RUNTIME
+    selected=0;
+#else
+    selected=n;
+#endif
+    accent=0;
 }
 bool cancel_composition() {
     bool pending = accent != 0;
@@ -195,13 +231,25 @@ std::string text(uint8_t u, bool shift, bool altgr, bool caps) {
         }
     if (index < 0)
         return {};
+#ifdef LEAF_CONTENT_RUNTIME
+    uint32_t base=plain[0][index], translated=base;bool spanish=false, ignored=false;
+    const bool downloaded=content::layout_key(index,false,translated,spanish);
+    if(downloaded)base=translated;
+#else
+    bool spanish=selected==3;
     uint32_t base = plain[selected][index];
+#endif
     if (caps &&
         ((base >= 'a' && base <= 'z') || (base >= 0x430 && base <= 0x44f) ||
          base == 0x451 || base == 0xf1 || base == 0xe7))
         shift = !shift;
+#ifdef LEAF_CONTENT_RUNTIME
+    uint32_t c=(shift?shifted:plain)[0][index];
+    if(downloaded)content::layout_key(index,shift,c,ignored);
+#else
     uint32_t c = (shift ? shifted : plain)[selected][index];
-    if (selected == 3 && altgr) {
+#endif
+    if (spanish && altgr) {
         switch (u) {
         case 0x1e:
             c = '|';
@@ -240,7 +288,7 @@ std::string text(uint8_t u, bool shift, bool altgr, bool caps) {
             break;
         }
     }
-    if (selected == 3 && !altgr && (u == 0x34 || u == 0x2f)) {
+    if (spanish && !altgr && (u == 0x34 || u == 0x2f)) {
         accent = c;
         return {};
     }

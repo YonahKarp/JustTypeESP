@@ -7,22 +7,11 @@ idf_component_register(
         "backup/backup.cpp"
         "backup/storage.cpp"
         "keyboard_config.cpp"
-        "justtype/src/fonts/intl_14.c"
-        "justtype/src/fonts/intl_16.c"
-        "justtype/src/fonts/intl_18.c"
-        "justtype/src/fonts/intl_20.c"
-        "justtype/src/fonts/intl_22.c"
-        "justtype/src/fonts/intl_24.c"
-        "justtype/src/fonts/intl_26.c"
-        "justtype/src/fonts/intl_28.c"
-        "justtype/src/fonts/intl_30.c"
-        "justtype/src/fonts/intl_32.c"
-        "justtype/src/fonts/intl_36.c"
-        "justtype/src/fonts/intl_40.c"
         "keyboard_input.cpp"
         "ble_keyboard.cpp"
         "justtype/src/app.cpp"
         "justtype/src/settings.cpp"
+        "justtype/src/content.cpp"
         "justtype/src/spellcheck.cpp"
         "justtype/src/spelling/spellcheck_core.cpp"
         "justtype/src/spelling/viewport_checker.cpp"
@@ -51,7 +40,6 @@ idf_component_register(
         driver
         esp_driver_ledc
         esp_timer
-        spiffs
         fatfs
         wear_levelling
         pthread
@@ -75,6 +63,7 @@ idf_component_register(
 target_compile_features(${COMPONENT_LIB} PRIVATE cxx_std_17)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
     LV_CONF_INCLUDE_SIMPLE
+    LEAF_CONTENT_RUNTIME=1
     LV_USE_SDL=0
     LV_USE_LINUX_FBDEV=0
     LV_USE_EVDEV=0

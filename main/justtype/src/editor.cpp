@@ -1,6 +1,8 @@
 #include "backup/backup.h"
 #include "international_font.h"
+#include "content.h"
 #include "editor.h"
+#include "editor_font_sizes.h"
 #include "file_manager.h"
 #include "editor_word_count.h"
 #include "theme.h"
@@ -11,22 +13,9 @@
 #include <cstdio>
 
 static const lv_font_t* get_font_for_size_index(int index) {
-    static const lv_font_t* fonts[] = {
-        get_ui_font(18),
-        get_ui_font(20),
-        get_ui_font(22),
-        get_ui_font(24),
-        get_ui_font(26),
-        get_ui_font(28),
-        get_ui_font(30),
-        get_ui_font(32),
-        get_ui_font(36),
-        get_ui_font(40),
-    };
-    constexpr int num_fonts = sizeof(fonts) / sizeof(fonts[0]);
-    if (index < 0) index = 0;
-    if (index >= num_fonts) index = num_fonts - 1;
-    return fonts[index];
+    const int choice=editor_font_choice(index);
+    const int size=editor_font_sizes[choice];
+    return content::editor_font(size,get_ui_font(size));
 }
 
 static void textarea_event_cb(lv_event_t* e) {

@@ -33,12 +33,11 @@ firmware in your browser at [justtypeleaf.com/sim](https://justtypeleaf.com/sim)
   Bluetooth Classic-only keyboards are not supported. The production keyboard
   is planned as a 4×12 matrix on an MCP23017 I2C expander, and the BLE
   transport is intended to be disabled in the final hardware build.
-- **Storage:** documents live in FAT partition (`documents`, at
-  0x500000); a legacy SPIFFS partition (0x180000) is kept for migration —
-  on first boot the firmware copies legacy SPIFFS documents into FAT without
-  deleting the originals, and only formats the FAT partition if every byte is
-  erased. A mount failure on non-blank storage stops startup rather than
-  formatting user data. See `partitions.csv`.
+- **Storage:** documents and downloadable content share an 11.94 MiB FAT
+  partition (`documents`, at 0x410000). The application has a single 4 MiB slot
+  at 0x10000; legacy SPIFFS was removed. This layout requires fresh filesystem
+  provisioning; see [CONTENT_SETUP.md](CONTENT_SETUP.md). Nonblank unmountable
+  storage is never automatically formatted.
 
 ## Features
 
@@ -121,7 +120,7 @@ Defaults — the twelve `Ctrl+…` actions can be rebound in Settings → Keyboa
 
 ```
 ├── CMakeLists.txt            ESP-IDF project (project justTypeESP, MINIMAL_BUILD)
-├── partitions.csv            nvs / phy_init / spiffs (legacy) / factory / documents (FAT)
+├── partitions.csv            nvs / phy_init / factory / shared documents (FAT)
 ├── dependencies.lock         LVGL 9.2.2 via the ESP-IDF Component Manager
 ├── sdkconfig.ci              (empty placeholder)
 ├── HOWTO.md                  Build/flash, BLE test, display, input latency, backup notes
@@ -182,8 +181,8 @@ idf.py -p COM3 flash monitor
 
 `COM3` was the connected board's CH340 serial port on 2026-10-23; check Device
 Manager if the port changes. Exit the monitor with Ctrl+]. The factory app is
-flashed at 0x200000; `idf.py flash` does not overwrite the SPIFFS partition at
-0x180000 or the documents FAT partition at 0x500000.
+flashed at 0x10000; `idf.py flash` does not write the shared filesystem at
+0x410000. Provision the new layout deliberately using [CONTENT_SETUP.md](CONTENT_SETUP.md).
 
 LCD timing preset: `idf.py menuconfig` → **Leaf display** → **RGB LCD timing
 preset** (Baseline 16 MHz / Comparison 14 MHz, default Comparison).

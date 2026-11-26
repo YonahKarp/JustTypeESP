@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 struct EditorState;
 namespace backup {
 enum class ProgressPhase {
@@ -18,8 +19,14 @@ struct Progress {
 Progress progress();
 struct Status {
   bool configured = false, linked = false, automatic = false, busy = false,
-       secure_storage = false, wifi_testing = false, wifi_saved = false;
+       secure_storage = false, wifi_testing = false, wifi_saved = false,
+       wifi_connected = false;
   std::string wifi_message;
+  bool wifi_scanning = false;
+  std::vector<std::string> wifi_networks;
+  std::string wifi_scan_message;
+  unsigned link_generation = 0;
+  bool link_success = false;
   std::string message = "Backup not configured", ssid, verification_url,
               user_code;
 };
@@ -29,6 +36,7 @@ struct WifiCredentials {
 WifiCredentials
 wifi_credentials(); // UI only; keep secrets out of public status/logs.
 bool test_saved_wifi();
+bool scan_wifi();
 void init();
 void shutdown();
 bool pending_storage();
@@ -38,6 +46,7 @@ void note_input();
 void before_storage_mutation(); // UI task: abort an in-progress snapshot before
                                 // any mutation.
 void request_now();
+void request_content();
 void request_verify();
 bool mark_document_dirty(const std::string &absolute_path);
 bool mark_tree_dirty();

@@ -1,4 +1,5 @@
 #include "backup.h"
+#include "content_download.h"
 #include "backup_client_config.h"
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
@@ -37,7 +38,7 @@ namespace backup {
 namespace {
 using namespace leaf_backup;
 constexpr uint32_t Manual = 1, Link = 2, Forget = 4, Network = 8,
-                   Automatic = 16, Verify = 32;
+                   Automatic = 16, Verify = 32, Content = 64, Scan = 128;
 constexpr int64_t PeriodUs = 30LL * 60 * 1000000;
 constexpr const char *Scope = "https://www.googleapis.com/auth/drive.file";
 constexpr const char *Api = "https://www.googleapis.com/drive/v3/files";
@@ -65,6 +66,7 @@ bool wifi_initialized = false, wifi_callback = false, ip_callback = false;
 esp_netif_t *wifi_interface = nullptr;
 std::atomic<unsigned> wifi_disconnect_reason{0};
 bool terminal = false;
+bool content_network_phase = false;
 uint32_t server_retry = 0;
 std::string error;
 using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
@@ -90,8 +92,8 @@ std::string dump(cJSON *j) {
   return result;
 }
 void message(const std::string &value) {
-  std::lock_guard<std::mutex> guard(mutex);
-  shared.message = value;
+  { std::lock_guard<std::mutex> guard(mutex); shared.message = value; }
+  if(content_network_phase)content::download_progress(-1,value);
 }
 bool fail(const std::string &value, bool fatal = false) {
   error = value;
@@ -910,9 +912,17 @@ bool authorize() {
     shared.message = "On your phone, open the URL and enter the code";
   }
   while (esp_timer_get_time() < expires && !cancelled()) {
-    sleep_ms(uint32_t(std::min<int64_t>(
-        int64_t(interval) * 1000,
-        std::max<int64_t>(0, (expires - esp_timer_get_time()) / 1000))));
+    const int64_t next_poll = std::min(expires,esp_timer_get_time()+int64_t(interval)*1000000);
+    while(esp_timer_get_time()<next_poll && !cancelled()) {
+      if(commands.fetch_and(~Content) & Content) {
+        // OAuth polling and content share this worker and Wi-Fi connection.
+        // Release OAuth's TLS connection while serving the queued request.
+        transport.reset();
+        content::session_deadline=std::min(expires,esp_timer_get_time()+240LL*1000000);
+        if(content::cancelled())content::network_error("Content operation cancelled");
+        else content::process(content::download);
+      } else vTaskDelay(pdMS_TO_TICKS(100));
+    }
     if (cancelled() || esp_timer_get_time() >= expires)
       break;
     r = form(
@@ -1014,6 +1024,26 @@ void worker(void *) {
     if (stopping.load())
       break;
     uint32_t action = commands.exchange(0);
+    if (action & Scan) {
+      std::vector<std::string> networks;
+      std::string result;
+      error.clear();
+      if (!setup_network() || esp_wifi_set_mode(WIFI_MODE_STA) != ESP_OK || esp_wifi_start() != ESP_OK || esp_wifi_scan_start(nullptr, true) != ESP_OK) {
+        result = error.empty() ? "Wi-Fi scan failed; try again" : error;
+      } else {
+        wifi_ap_record_t records[20]{};
+        uint16_t count = 20;
+        if (esp_wifi_scan_get_ap_records(&count, records) != ESP_OK) result = "Could not read network list";
+        else for (unsigned i=0;i<count;++i) {
+          std::string name(reinterpret_cast<const char *>(records[i].ssid));
+          if (!name.empty() && name.find('\n') == std::string::npos && std::find(networks.begin(), networks.end(), name) == networks.end()) networks.push_back(name);
+        }
+        if (result.empty() && networks.empty()) result = "No networks found; try again";
+      }
+      wifi_off();
+      { std::lock_guard<std::mutex> lock(mutex); shared.wifi_networks=std::move(networks); shared.wifi_scan_message=result; shared.wifi_scanning=false; }
+      action &= ~Scan;
+    }
     if (action & Network) {
       std::lock_guard<std::mutex> guard(mutex);
       ssid = pending_ssid;
@@ -1047,13 +1077,30 @@ void worker(void *) {
         std::lock_guard<std::mutex> guard(mutex);
         shared.wifi_testing = false;
         shared.wifi_saved = saved;
+        shared.wifi_connected = connected;
         shared.wifi_message = result;
       }
       ESP_LOGI("leaf_wifi", "%s", result.c_str());
       message(result);
       publish(false);
-      if (!(action & (Manual | Link | Verify | Forget)))
+      if (!(action & (Manual | Link | Verify | Forget | Content)))
         continue;
+    }
+    if (action & Content) {
+      publish(true); terminal = false; error.clear();
+      radio_deadline = esp_timer_get_time() + 240LL * 1000000;
+      // Content has no dependency on Google OAuth; the same worker owns Wi-Fi.
+      content::session_deadline=radio_deadline;
+      if(content::cancelled()) content::network_error("Content operation cancelled");
+      else {
+        content_network_phase=true;
+        const bool ready=!content::needs_network() || connect();
+        content_network_phase=false;
+        if(ready)content::process(content::download);
+        else content::network_error(error.empty() ? "Wi-Fi unavailable" : error);
+      }
+      wifi_off(); publish(false);
+      action &= ~Content;
     }
     if (action & Forget) {
       refresh_token.clear();
@@ -1080,6 +1127,7 @@ void worker(void *) {
     }
     if (client_id.empty() || client_secret.empty()) {
       message("Google OAuth client not configured; see BACKUP_SETUP.md");
+      if (action & Link) { std::lock_guard<std::mutex> guard(mutex); shared.link_success=false; ++shared.link_generation; }
       publish(false);
       continue;
     }
@@ -1152,6 +1200,7 @@ void worker(void *) {
         message((error.empty() ? "Backup interrupted" : error) + "; retry in " +
                 std::to_string((wait + 59) / 60) + " min");
     }
+    if (linking) { std::lock_guard<std::mutex> guard(mutex); shared.link_success=ok; ++shared.link_generation; }
     publish(false);
   }
   wifi_off();
@@ -1173,6 +1222,7 @@ void init() {
   }
 }
 void shutdown() {
+  content::cancel();
   if (!task)
     return;
   stopping = true;
@@ -1195,6 +1245,10 @@ void tick(EditorState &editor) {
 void before_storage_mutation() { leaf_backup::storage_cancel(); }
 bool pending_storage() { return leaf_backup::storage_pending(); }
 void note_input() { last_input = esp_timer_get_time(); }
+void request_content() {
+  if (!task) { content::network_error("Network worker unavailable"); return; }
+  commands.fetch_or(Content); xTaskNotifyGive(task);
+}
 void request_now() { manual_pending = true; }
 void request_verify() { verify_pending = true; }
 bool mark_document_dirty(const std::string &path) {
@@ -1220,6 +1274,7 @@ bool configure_wifi(const std::string &network, const std::string &key) {
     pending_ssid = network;
     pending_password = key;
     shared.wifi_testing = true;
+    shared.wifi_connected = false;
     shared.wifi_message = "Saving and testing Wi-Fi connection...";
   }
   send(Network);
@@ -1232,6 +1287,11 @@ WifiCredentials wifi_credentials() {
 bool test_saved_wifi() {
   const auto credentials = wifi_credentials();
   return configure_wifi(credentials.ssid, credentials.password);
+}
+bool scan_wifi() {
+  if (!task) return false;
+  { std::lock_guard<std::mutex> lock(mutex); if (shared.wifi_scanning || shared.wifi_testing || shared.busy) return false; shared.wifi_scanning=true; shared.wifi_scan_message="Scanning for networks..."; }
+  send(Scan); return true;
 }
 Status status() {
   std::lock_guard<std::mutex> guard(mutex);

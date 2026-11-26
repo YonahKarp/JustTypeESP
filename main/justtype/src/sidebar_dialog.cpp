@@ -4,7 +4,7 @@
 #include "editor.h"
 #include "theme.h"
 
-static lv_obj_t* create_confirmation_dialog(
+lv_obj_t* create_confirmation_dialog(
     lv_obj_t* screen,
     const Theme& theme,
     int width,
@@ -132,15 +132,18 @@ void hide_delete_dialog(SidebarState& sidebar) {
 
 void update_delete_dialog_selection(SidebarState& sidebar, EditorState& editor) {
     if (!sidebar.delete_dialog || !sidebar.delete_btn || !sidebar.cancel_btn) return;
-    
-    if (sidebar.dialog_selection == 0) {
-        lv_obj_set_style_border_width(sidebar.delete_btn, 2, 0);
-        lv_obj_set_style_border_color(sidebar.delete_btn, lv_color_white(), 0);
-        lv_obj_set_style_border_width(sidebar.cancel_btn, 0, 0);
+    update_confirmation_selection(sidebar.delete_btn, sidebar.cancel_btn, sidebar.dialog_selection);
+}
+
+void update_confirmation_selection(lv_obj_t* action, lv_obj_t* cancel, int selection) {
+    if (selection == 0) {
+        lv_obj_set_style_border_width(action, 2, 0);
+        lv_obj_set_style_border_color(action, lv_color_white(), 0);
+        lv_obj_set_style_border_width(cancel, 0, 0);
     } else {
-        lv_obj_set_style_border_width(sidebar.delete_btn, 0, 0);
-        lv_obj_set_style_border_width(sidebar.cancel_btn, 2, 0);
-        lv_obj_set_style_border_color(sidebar.cancel_btn, lv_color_white(), 0);
+        lv_obj_set_style_border_width(action, 0, 0);
+        lv_obj_set_style_border_width(cancel, 2, 0);
+        lv_obj_set_style_border_color(cancel, lv_color_white(), 0);
     }
 }
 

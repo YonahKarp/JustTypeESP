@@ -2,6 +2,7 @@
 #include "ble_keyboard.h"
 #include "keyboard_input.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -21,6 +22,9 @@ static void justtype_task(void *) {
 }
 
 extern "C" void app_main(void) {
+    // Leave internal DMA-capable RAM available for the Wi-Fi driver. General
+    // allocations can use PSRAM; explicit internal/DMA allocations are unchanged.
+    heap_caps_malloc_extmem_enable(0);
     if (!keyboard_input::init()) {
         ESP_LOGE("justtype", "Keyboard event queue allocation failed");
     } else if (!start_ble_keyboard()) {

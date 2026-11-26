@@ -22,7 +22,6 @@
 #include "esp_lcd_panel_rgb.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "esp_spiffs.h"
 #include "esp_partition.h"
 #include "esp_vfs_fat.h"
 #include "wear_levelling.h"
@@ -133,22 +132,6 @@ void keyboard_read_cb(lv_indev_t *, lv_indev_data_t *data) {
     keyboard_input::read_lvgl(data);
 }
 
-bool init_spiffs() {
-    const esp_vfs_spiffs_conf_t conf = {
-        .base_path = "/legacy",
-        .partition_label = nullptr,
-        .max_files = 8,
-        .format_if_mount_failed = false,
-    };
-
-    esp_err_t err = esp_vfs_spiffs_register(&conf);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Legacy SPIFFS mount unavailable: %s", esp_err_to_name(err));
-        return false;
-    }
-    return true;
-}
-
 bool documents_partition_is_blank(const esp_partition_t *partition) {
     uint8_t block[4096];
     for (size_t offset = 0; offset < partition->size; offset += sizeof(block)) {
@@ -161,66 +144,7 @@ bool documents_partition_is_blank(const esp_partition_t *partition) {
     return true;
 }
 
-bool make_parent_dirs(const std::string &path) {
-    for (size_t slash = path.find('/', 1); slash != std::string::npos; slash = path.find('/', slash + 1)) {
-        std::string parent = path.substr(0, slash);
-        struct stat st;
-        if (stat(parent.c_str(), &st) == 0) {
-            if (!S_ISDIR(st.st_mode)) return false;
-        } else if (mkdir(parent.c_str(), 0755) != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool migrate_legacy_files() {
-    const char *marker = "/spiffs/.legacy_migrated";
-    struct stat st;
-    if (stat(marker, &st) == 0) return true;
-
-    DIR *dir = opendir("/legacy/user_files");
-    if (!dir) return true;
-
-    bool success = true;
-    unsigned copied = 0;
-    while (struct dirent *entry = readdir(dir)) {
-        std::string name = entry->d_name;
-        if (name == "." || name == ".." || name.empty()) continue;
-        std::string source = "/legacy/user_files/" + name;
-        std::string target = "/spiffs/user_files/" + name;
-        if (stat(target.c_str(), &st) == 0) continue;
-        if (!make_parent_dirs(target)) { success = false; break; }
-
-        std::ifstream input(source, std::ios::binary);
-        if (!input) { success = false; break; }
-        std::string temporary = target + ".migrating";
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) { success = false; break; }
-        char buffer[1024];
-        while (input) {
-            input.read(buffer, sizeof(buffer));
-            output.write(buffer, input.gcount());
-        }
-        output.close();
-        if (!input.eof() || !output || std::rename(temporary.c_str(), target.c_str()) != 0) {
-            std::remove(temporary.c_str());
-            success = false;
-            break;
-        }
-        ++copied;
-    }
-    closedir(dir);
-    if (success) {
-        std::ofstream done(marker);
-        success = static_cast<bool>(done);
-    }
-    if (success) ESP_LOGI(TAG, "Legacy migration complete: %u files copied", copied);
-    if (!success) ESP_LOGE(TAG, "Legacy document migration incomplete; originals remain untouched");
-    return success;
-}
-
-bool init_documents_storage(bool legacy_available) {
+bool init_documents_storage() {
     const esp_partition_t *partition = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_FAT, "documents");
     if (!partition) {
@@ -235,7 +159,7 @@ bool init_documents_storage(bool legacy_available) {
         ESP_LOGE(TAG, "Documents FAT mount failed (not formatting existing data): %s", esp_err_to_name(err));
         return false;
     }
-    return !legacy_available || migrate_legacy_files();
+    return true;
 }
 
 }  // namespace
@@ -256,8 +180,7 @@ bool init(int32_t width, int32_t height) {
         ESP_LOGW(TAG, "Ignoring requested size %ldx%ld, using %dx%d", (long)width, (long)height, LCD_H_RES, LCD_V_RES);
     }
 
-    bool legacy_available = init_spiffs();
-    if (!init_documents_storage(legacy_available)) {
+    if (!init_documents_storage()) {
         return false;
     }
 

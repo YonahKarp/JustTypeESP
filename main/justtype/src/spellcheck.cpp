@@ -1,4 +1,6 @@
 #include "spellcheck.h"
+#include "content.h"
+#include "spelling/unicode_word.h"
 #include "editor.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -58,7 +60,7 @@ void update_tooltip_options() {
     options += (tooltip_selection == count ? "> " : "  ");
     options += "Add to dictionary\n";
     options += (tooltip_selection == count + 1 ? "> " : "  ");
-    options += "Cancel\nUp/Down: select   Enter: choose   Esc: close";
+    options += "Cancel";
     lv_label_set_text(tooltip_hint, options.c_str());
 }
 void close_tooltip() {
@@ -68,7 +70,7 @@ void close_tooltip() {
     tooltip_word.clear();
 }
 void open_tooltip(EditorState &editor) {
-    if (!buffers || !on)
+    if (!buffers || !on || !content::dictionary_available())
         return;
     const char *text = lv_textarea_get_text(editor.textarea);
     const uint32_t cursor = lv_textarea_get_cursor_pos(editor.textarea);
@@ -142,7 +144,7 @@ void open_tooltip(EditorState &editor) {
     lv_obj_set_pos(tooltip, x, popup_y);
 }
 struct CacheEntry {
-    std::array<char, 33> word{};
+    std::array<char, 97> word{};
     bool valid = false, known = false;
 };
 std::array<CacheEntry, 64> lookup_cache{};
@@ -225,7 +227,7 @@ bool persist() {
 } // namespace
 void init() {
     // Two fixed snapshots live in PSRAM, preserving scarce internal/DMA memory.
-    if (!buffers) {
+    if (!buffers && content::dictionary_available()) {
         void *storage = heap_caps_malloc(sizeof(Buffers),
                                          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!storage) {
@@ -235,7 +237,7 @@ void init() {
         buffers = new (storage) Buffers{};
     }
     struct stat st{};
-    if (stat(path, &st) != 0 || st.st_size > 4400)
+    if (stat(path, &st) != 0 || st.st_size > 128 * 98 + 32)
         return;
     std::ifstream f(path);
     int value;
@@ -245,12 +247,12 @@ void init() {
     std::string line;
     std::getline(f, line);
     while (std::getline(f, line) && personal.size() < limit) {
-        auto w = spelling::normalize(line);
+        auto w = spelling::normalize_utf8(line);
         if (!w.empty())
             personal.insert(w);
     }
 }
-bool enabled() { return on; }
+bool enabled() { return on && content::dictionary_available(); }
 bool toggle() {
     if (!buffers)
         return false;
@@ -343,8 +345,16 @@ bool handle_event(const platform::PlatformEvent &event, EditorState &editor,
     return false;
 }
 void update(EditorState &editor, bool visible) {
+    if (!buffers && on && content::dictionary_available()) init();
     if (!buffers)
         return;
+    static unsigned dictionary_revision = ~0u;
+    const unsigned revision = content::revision();
+    if (dictionary_revision != revision) {
+        dictionary_revision = revision; lookup_cache = {};
+        full_check_pending = document_dirty = true; scan_complete = true;
+        suggestions.start(""); suggestion_word.clear(); close_tooltip();
+    }
     if (!text_label) {
         textarea = editor.textarea;
         text_label = lv_textarea_get_label(textarea);
@@ -402,7 +412,7 @@ void update(EditorState &editor, bool visible) {
         theme_id = editor.dark_theme;
         lv_obj_invalidate(text_label);
     }
-    if (!visible || !on) {
+    if (!visible || !on || !content::dictionary_available()) {
         close_tooltip();
         suggestion_word.clear();
         suggestions.start({});

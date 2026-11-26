@@ -26,6 +26,8 @@ build/
 
 # ESP-IDF specific build outputs
 *.bin
+!tools/content/international/*.bin
+!tools/content/fonts/*/*.bin
 *.elf
 *.map
 flasher_args.json # Generated in build directory

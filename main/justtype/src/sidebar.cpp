@@ -128,17 +128,6 @@ void create_sidebar_ui(SidebarState& sidebar, EditorState& editor, lv_obj_t* par
     create_add_document_icon(sidebar.add_document_icon, sidebar.new_file_btn, 20, theme.sidebar_btn_text);
     lv_obj_center(sidebar.add_document_icon.canvas);
     
-    sidebar.settings_btn = lv_btn_create(btn_container);
-    lv_obj_set_size(sidebar.settings_btn, 36, 36);
-    lv_obj_set_style_bg_color(sidebar.settings_btn, theme.sidebar_new_file, 0);
-    lv_obj_set_style_radius(sidebar.settings_btn, 4, 0);
-    lv_obj_set_style_shadow_width(sidebar.settings_btn, 0, 0);
-    lv_obj_add_event_cb(sidebar.settings_btn, [](lv_event_t*) { if (g_sidebar && g_editor) settings_open(*g_sidebar, *g_editor); }, LV_EVENT_CLICKED, nullptr);
-    sidebar.settings_icon = lv_label_create(sidebar.settings_btn);
-    lv_label_set_text(sidebar.settings_icon, LV_SYMBOL_SETTINGS);
-    lv_obj_set_style_text_color(sidebar.settings_icon, theme.sidebar_btn_text, 0);
-    lv_obj_set_style_text_font(sidebar.settings_icon, get_ui_font(20), 0);
-    lv_obj_center(sidebar.settings_icon);
 
     sidebar.search_container = lv_obj_create(sidebar.sidebar_obj);
     lv_obj_remove_style_all(sidebar.search_container);

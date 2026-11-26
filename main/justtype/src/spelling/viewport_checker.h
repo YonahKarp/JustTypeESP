@@ -46,7 +46,7 @@ class ViewportChecker {
     };
     struct Word {
         uint32_t start = 0, end = 0;
-        std::array<char, 33> value{};
+        uint16_t value = 0;
         bool misspelled = false;
     };
     struct Glyph {
@@ -58,6 +58,8 @@ class ViewportChecker {
     std::array<Underline, max_segments> segments_{};
     size_t segment_count_ = 0;
     std::array<Word, max_words> words_{};
+    std::array<char, max_words * 33> word_bytes_{};
+    size_t word_bytes_used_ = 0;
     size_t word_count_ = 0;
     std::array<Glyph, 96> pending_glyphs_{};
     size_t glyph_count_ = 0;

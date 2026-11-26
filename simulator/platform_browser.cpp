@@ -7,6 +7,7 @@
 #include "keyboard_input.h"
 #include "keyboard_timing.h"
 #include "backlight.h"
+#include "international_font.h"
 #include <emscripten.h>
 #include <algorithm>
 #include <cstdlib>
@@ -82,6 +83,10 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE void leaf_report(int mods, int a, int b, int c, int d, int e, int f) {
     const uint8_t report[] = {uint8_t(mods), 0, uint8_t(a), uint8_t(b), uint8_t(c), uint8_t(d), uint8_t(e), uint8_t(f)};
     keyboard_input::submit_report(report, sizeof(report));
+}
+EMSCRIPTEN_KEEPALIVE int leaf_has_glyph(int size, unsigned codepoint) {
+    lv_font_glyph_dsc_t glyph{};
+    return lv_font_get_glyph_dsc(get_ui_font(size), &glyph, codepoint, 0) && !glyph.is_placeholder ? 1 : 0;
 }
 EMSCRIPTEN_KEEPALIVE void leaf_text(const char* value) {
     // Split only on UTF-8 codepoint boundaries to fit PlatformEvent::text.

@@ -1,4 +1,6 @@
 #include "international_font.h"
+#include "editor_font_sizes.h"
+#include "content.h"
 #include "app.h"
 #include "backup/backup.h"
 #include "utf8_positions.h"
@@ -677,10 +679,6 @@ static void handle_sidebar_keyboard() {
                 g_sidebar.new_folder_selected = false;
                 g_sidebar.new_file_selected = true;
                 refresh_file_list_ui(g_sidebar, g_editor);
-            } else if (g_sidebar.new_file_selected) {
-                g_sidebar.new_file_selected = false;
-                g_sidebar.settings_selected = true;
-                refresh_file_list_ui(g_sidebar, g_editor);
             } else if (!g_sidebar.settings_selected && !g_sidebar.new_file_selected && !g_sidebar.renaming &&
                        g_sidebar.selected_index >= 0 && g_sidebar.selected_index < display_count) {
                 const SidebarItem& item = g_sidebar.folder_data.display_items[g_sidebar.selected_index];
@@ -914,41 +912,24 @@ static bool handle_shortcuts() {
         }
 
         if (platform::was_key_pressed(platform::KeyCode::T)) {
-            g_editor.dark_theme = (g_editor.dark_theme + 1) % 5;
+            const int count=int(content::theme_choices().size());
+            const int next=(content::active_theme_index(g_editor.dark_theme)+1)%count;
+            if(!content::select_theme(next,g_editor.dark_theme))return true;
+            content::tick();
             update_editor_theme(g_editor, g_editor.dark_theme);
             update_sidebar_theme(g_sidebar, g_editor.dark_theme);
             g_editor.state_pending_save = true;
             g_editor.state_change_time = lv_tick_get();
         }
 
-        if (platform::was_key_pressed(platform::KeyCode::Equals)) {
-            if (g_editor.font_size_index < 9) {
-                g_editor.font_size_index++;
-                static const lv_font_t* fonts[] = {
-                    get_ui_font(18), get_ui_font(20), get_ui_font(22),
-                    get_ui_font(24), get_ui_font(26), get_ui_font(28),
-                    get_ui_font(30), get_ui_font(32), get_ui_font(36),
-                    get_ui_font(40)
-                };
-                lv_obj_set_style_text_font(g_editor.textarea, fonts[g_editor.font_size_index], 0);
-                g_editor.state_pending_save = true;
-                g_editor.state_change_time = lv_tick_get();
-            }
-        }
-
-        if (platform::was_key_pressed(platform::KeyCode::Minus)) {
-            if (g_editor.font_size_index > 0) {
-                g_editor.font_size_index--;
-                static const lv_font_t* fonts[] = {
-                    get_ui_font(18), get_ui_font(20), get_ui_font(22),
-                    get_ui_font(24), get_ui_font(26), get_ui_font(28),
-                    get_ui_font(30), get_ui_font(32), get_ui_font(36),
-                    get_ui_font(40)
-                };
-                lv_obj_set_style_text_font(g_editor.textarea, fonts[g_editor.font_size_index], 0);
-                g_editor.state_pending_save = true;
-                g_editor.state_change_time = lv_tick_get();
-            }
+        if (platform::was_key_pressed(platform::KeyCode::Equals) ||
+            platform::was_key_pressed(platform::KeyCode::Minus)) {
+            const int delta=platform::was_key_pressed(platform::KeyCode::Equals)?1:-1;
+            const int choice=std::clamp(editor_font_choice(g_editor.font_size_index)+delta,0,3);
+            g_editor.font_size_index=editor_font_indices[choice];
+            update_editor_font(g_editor);
+            g_editor.state_pending_save=true;
+            g_editor.state_change_time=lv_tick_get();
         }
     }
 
@@ -967,7 +948,7 @@ static void load_editor_state(EditorState& state, const char* state_file_path,
         std::getline(state_in, current_file_path);
         state_in >> saved_cursor_pos;
         if (state_in >> saved_font_size_index) {
-            if (saved_font_size_index < 0 || saved_font_size_index > 9) {
+            if (saved_font_size_index < 0 || saved_font_size_index > 10) {
                 saved_font_size_index = 3;
             }
         }
@@ -980,8 +961,8 @@ static void load_editor_state(EditorState& state, const char* state_file_path,
 
     state.state_file_path = state_file_path;
     state.saved_cursor_pos = saved_cursor_pos;
-    state.font_size_index = saved_font_size_index;
-    state.dark_theme = (saved_dark_theme >= 0 && saved_dark_theme <= 4) ? saved_dark_theme : 1;
+    state.font_size_index = editor_font_index(saved_font_size_index);
+    state.dark_theme = (saved_dark_theme == 0) ? 0 : 1;
     out_file_path = current_file_path;
 }
 
@@ -1039,6 +1020,8 @@ bool init_app(App& app) {
 
     load_file_into_editor(g_editor, file_to_load.c_str());
 
+    content::init();
+    content::tick();
     spellcheck::init();
     keyboard_config::load();
     serial_export::init();
@@ -1092,6 +1075,7 @@ void run_app(App& app) {
     lv_group_focus_obj(g_editor.textarea);
 
     bool running = true;
+    bool content_was_busy = false;
     uint32_t next_timer_wait = 0;
 
     while (running) {
@@ -1128,6 +1112,17 @@ void run_app(App& app) {
         if (backup::pending_storage()) wait_time = std::min<uint32_t>(wait_time, 1);
         if (spellcheck::suggestions_pending()) wait_time = std::min<uint32_t>(wait_time, 1);
 
+        if(content_was_busy && !content::busy()){
+            keyboard_input::discard_pending();
+            platform::PlatformEvent discarded{};
+            while(platform::poll_event(discarded,0)){}
+            content_was_busy=false;
+            settings_refresh();
+        }
+        if(content::busy()){
+            content_was_busy=true;
+            if(!settings_active())settings_open(g_sidebar,g_editor);
+        }
         // Drain queued input before rendering; each key can generate several events.
         for (unsigned batch = 0; batch < 64 && !g_sidebar.animating; ++batch) {
             // Wait only for the first event in a batch.
@@ -1318,15 +1313,23 @@ void run_app(App& app) {
             if (!had_event || !running) break;
         }
 
+        content_was_busy = content_was_busy || content::busy();
+        static bool cursor_suppressed = false;
+        const bool suppress_cursor = g_sidebar.visible || g_sidebar.animating || settings_active();
+        if (g_editor.textarea && suppress_cursor != cursor_suppressed) {
+            cursor_suppressed = suppress_cursor;
+            lv_obj_set_style_border_width(g_editor.textarea, suppress_cursor ? 0 : 2, LV_PART_CURSOR);
+            lv_obj_set_style_border_width(g_editor.textarea, suppress_cursor ? 0 : 2, LV_PART_CURSOR | LV_STATE_FOCUSED);
+        }
         // Reports remain queued, undecoded and in order. Disable native LVGL
         // key repeat as well so a previously held key cannot edit frozen UI.
         if (g_sidebar.animating && keyboard_input::backlog_high()) finish_sidebar_slide(g_sidebar);
         const bool slide_was_animating = g_sidebar.animating;
-        if (app.keyboard_indev) lv_indev_enable(app.keyboard_indev, !g_sidebar.animating);
+        if (app.keyboard_indev) lv_indev_enable(app.keyboard_indev, !g_sidebar.animating && !content::busy());
         if (!g_sidebar.animating) update_editor_backup_progress(g_editor);
         next_timer_wait = lv_timer_handler();
         update_sidebar_slide(g_sidebar);
-        if (app.keyboard_indev) lv_indev_enable(app.keyboard_indev, !g_sidebar.animating);
+        if (app.keyboard_indev) lv_indev_enable(app.keyboard_indev, !g_sidebar.animating && !content::busy());
         // Complete the sample after the final animated position was presented.
         if (!g_sidebar.animating) platform::end_ui_animation();
         platform::pump_events();
@@ -1349,6 +1352,15 @@ void run_app(App& app) {
             serial_export::send_documents(g_editor.user_files_dir.c_str(), flush_editor_content(g_editor));
             keyboard_input::discard_pending();
             lv_obj_delete(overlay);
+        }
+        static unsigned content_revision = ~0u;
+        content::tick();
+        const auto revision = content::revision();
+        if (content_revision != revision) {
+            content_revision = revision;
+            update_editor_font(g_editor);
+            update_editor_theme(g_editor, g_editor.dark_theme);
+            update_sidebar_theme(g_sidebar, g_editor.dark_theme);
         }
         spellcheck::update(g_editor, !quick_open_active() && !settings_active() && !g_sidebar.visible && !g_search.active);
         process_pending_word_count(g_editor, 120);

@@ -112,3 +112,16 @@ npm test
 - The Canvas itself is keyboard-operated, without pointer/touch hit-testing of LVGL widgets. On phones, Type enables text entry; full menu navigation needs a physical keyboard. The Canvas is not a screen-reader semantic editor.
 - Single-threaded word counting runs after the existing debounce on the browser thread. Browser scheduling, full-image Canvas conversions and Asyncify overhead are simulator costs; they do not model device latency or CPU usage. Shared application behavior is prioritized over matching hardware speed.
 - Files survive reload through IndexedDB, but browser storage is not archival storage. Multi-tab edits, storage eviction and abrupt process termination are not equivalent to the firmware's flash persistence guarantees.
+
+## Content downloads
+
+Settings > Content can refresh, install, update and remove dictionaries, fonts,
+themes and packs in the browser. Asynchronous Fetch keeps progress and cancellation responsive;
+Typing/paste is discarded and Settings stays open during downloads. Escape,
+backtick or Cancel stops the transfer without closing Settings.
+Web Crypto verifies SHA-256, then the shared C++ package manager validates and
+commits the installation. Assets persist with documents in IndexedDB. The browser
+approximates Leaf storage capacity, preserves a 1 MiB document reserve and checks
+browser quota. HTTPS or localhost is required. Local previews need a same-origin
+API proxy at /api/leaf/content/v1/. Physical Wi-Fi settings and Google Drive backup
+remain hardware-only.

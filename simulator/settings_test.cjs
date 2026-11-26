@@ -16,7 +16,19 @@ const assert = require('node:assert/strict');
   await page.evaluate(()=>new Promise((resolve,reject)=>{Module.FS.writeFile('/spiffs/user_files/.keyboard','3 0 9 23 19 4 6 27 25 46 45 5 17 18\n');Module.FS.syncfs(false,e=>e?reject(e):resolve());}));
   await page.reload();await start();await page.locator('#screen').focus();
   await key('Control+a');await key('Backspace');
-  for (const theme of [2,3,4,0,1]) {await key('Control+t');assert.equal(Number((await editorState())[3]),theme,'Ctrl+T cycles every theme');}
+  const contentState=()=>page.evaluate(()=>[0,1].map(n=>{try{return JSON.parse(JSON.parse(Module.FS.readFile(`/spiffs/leaf_content/registry/${n}.json`,{encoding:'utf8'})).payload);}catch{return null;}}).filter(Boolean).sort((a,b)=>b.generation-a.generation)[0]);
+  const assertThemeStep=async(binding,message)=>{
+    const cs=await contentState();
+    const options=['builtin:0','builtin:1','builtin:2','builtin:3','builtin:4',...(cs?.packages.filter(p=>p.type==='theme').map(p=>p.id)||[])];
+    const active=cs?.theme||'builtin:'+Number((await editorState())[3]);
+    const expected=options[(options.indexOf(active)+1)%options.length];
+    await key(binding);
+    assert.equal((await contentState())?.theme||'builtin:'+Number((await editorState())[3]),expected,message);
+  };
+  for (const theme of [2,3,4]) {await key('Control+t');assert.equal(Number((await editorState())[3]),theme,'Ctrl+T cycles built-in themes');}
+  const installedThemes=(await contentState())?.packages.filter(p=>p.type==='theme')||[];
+  for(const theme of installedThemes){await key('Control+t');assert.equal((await contentState()).theme,theme.id,'Ctrl+T includes installed themes');}
+  for(const theme of [0,1]){await key('Control+t');assert.equal(Number((await editorState())[3]),theme,'Ctrl+T wraps to built-in themes');}
   await key('Meta'); assert.equal(await page.evaluate(()=>Module._leaf_view()),4);
   await key('Enter');await key('ArrowDown');await key('Escape');
   assert.equal(Number((await editorState())[3]),1,'Escape cancels dropdown selection');
@@ -65,7 +77,7 @@ const assert = require('node:assert/strict');
   await key('Escape');await page.locator('#save').click();
   await page.waitForFunction(()=>document.querySelector('#status').textContent==='Saved in this browser.');
   await page.reload();await start();await page.locator('#screen').focus();
-  await key('Control+Alt+Enter');assert.equal(Number((await editorState())[3]),0,'binding survives reboot');assert.equal(await documentText(),'');
+  await assertThemeStep('Control+Alt+Enter','binding survives reboot');assert.equal(await documentText(),'');
   await key('Alt+q');await page.keyboard.type('find');await page.waitForTimeout(200);assert.equal(await documentText(),'');
   await key('Escape');
   // Version 4 had 12 entries, with a custom QR action at index 2. Retain all
@@ -75,8 +87,7 @@ const assert = require('node:assert/strict');
     Module.FS.syncfs(false,e=>e?reject(e):resolve());
   }));
   await page.reload();await start();await page.locator('#screen').focus();
-  const priorTheme=Number((await editorState())[3]);
-  await key('Control+Alt+Enter');assert.equal(Number((await editorState())[3]),(priorTheme+1)%5,'v4 custom theme binding retained');
+  await assertThemeStep('Control+Alt+Enter','v4 custom theme binding retained');
   const previousText=await documentText();
   await key('Control+Alt+ArrowRight');assert.equal(await documentText(),previousText,'removed QR binding no longer runs');
   await key('Alt+q');await page.keyboard.type('find');await page.waitForTimeout(200);assert.equal(await documentText(),previousText,'v4 custom search binding retained');
